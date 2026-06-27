@@ -4,8 +4,6 @@ import api from '../../api/axios';
 import ScheduleCalendar from '../../components/common/ScheduleCalendar';
 import { InstructorCardSkeleton, CalendarSkeleton } from '../../components/common/Skeleton';
 
-const PROGRAMS = ['BPED','BECED','BCAED'];
-
 const progBadge = (dept) => {
   const map = { BPED: 'bg-blue-100 text-blue-700', BECED: 'bg-green-100 text-green-700', BCAED: 'bg-purple-100 text-purple-700' };
   return map[dept] || 'bg-gray-100 text-gray-600';
