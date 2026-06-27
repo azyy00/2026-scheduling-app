@@ -63,7 +63,14 @@ const Dashboard = () => {
 
   const getSlotIndex = (timeStart) => {
     const t = timeStart?.slice(0, 5);
-    return TIME_VALUES.indexOf(t);
+    if (!t) return -1;
+    // Find the last slot whose time is <= the schedule's start time
+    let idx = -1;
+    for (let i = 0; i < TIME_VALUES.length; i++) {
+      if (TIME_VALUES[i] <= t) idx = i;
+      else break;
+    }
+    return idx;
   };
 
   const saveInstructor = async (e) => {
