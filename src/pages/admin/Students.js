@@ -45,7 +45,7 @@ const Students = () => {
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editId) await api.put(`/students/${editId}`, form);
+      if (editId) await api.put(`/students?id=${editId}`, form);
       else await api.post('/students', form);
       toast.success(editId ? 'Updated' : 'Student added');
       setForm(empty); setEditId(null); setShowForm(false); load();
@@ -54,7 +54,7 @@ const Students = () => {
 
   const remove = async (id) => {
     if (!window.confirm('Delete this student?')) return;
-    await api.delete(`/students/${id}`); toast.success('Deleted'); load();
+    await api.delete(`/students?id=${id}`); toast.success('Deleted'); load();
   };
 
   const handleCSV = (e) => {

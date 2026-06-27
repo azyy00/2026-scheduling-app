@@ -28,7 +28,7 @@ const Sections = () => {
       year_level: form.year_level,
     };
     try {
-      if (editId) await api.put(`/sections/${editId}`, payload);
+      if (editId) await api.put(`/sections?id=${editId}`, payload);
       else await api.post('/sections', payload);
       toast.success(editId ? 'Updated' : 'Section added');
       setForm(empty); setEditId(null); setShowForm(false); load();
@@ -37,7 +37,7 @@ const Sections = () => {
 
   const remove = async (id) => {
     if (!window.confirm('Delete this section?')) return;
-    await api.delete(`/sections/${id}`);
+    await api.delete(`/sections?id=${id}`);
     toast.success('Deleted'); load();
   };
 

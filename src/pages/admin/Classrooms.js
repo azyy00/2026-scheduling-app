@@ -23,7 +23,7 @@ const Classrooms = () => {
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editId) await api.put(`/classrooms/${editId}`, form);
+      if (editId) await api.put(`/classrooms?id=${editId}`, form);
       else await api.post('/classrooms', form);
       toast.success(editId ? 'Room updated' : 'Room added');
       setForm(empty); setEditId(null); setShowForm(false); load();
@@ -34,7 +34,7 @@ const Classrooms = () => {
 
   const remove = async (id) => {
     if (!window.confirm('Delete this room?')) return;
-    await api.delete(`/classrooms/${id}`);
+    await api.delete(`/classrooms?id=${id}`);
     toast.success('Deleted'); load();
   };
 

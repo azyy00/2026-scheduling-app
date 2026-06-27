@@ -44,7 +44,7 @@ const Subjects = () => {
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editId) await api.put(`/subjects/${editId}`, form);
+      if (editId) await api.put(`/subjects?id=${editId}`, form);
       else await api.post('/subjects', form);
       toast.success(editId ? 'Updated' : 'Subject added');
       setForm(empty); setEditId(null); setShowForm(false); load();
@@ -53,7 +53,7 @@ const Subjects = () => {
 
   const remove = async (id) => {
     if (!window.confirm('Delete this subject?')) return;
-    await api.delete(`/subjects/${id}`); toast.success('Deleted'); load();
+    await api.delete(`/subjects?id=${id}`); toast.success('Deleted'); load();
   };
 
   const handleCSV = (e) => {

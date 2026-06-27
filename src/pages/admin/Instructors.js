@@ -65,7 +65,7 @@ const Instructors = () => {
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editId) await api.put(`/instructors/${editId}`, form);
+      if (editId) await api.put(`/instructors?id=${editId}`, form);
       else await api.post('/instructors', form);
       toast.success(editId ? 'Updated' : 'Instructor added');
       setForm(empty); setEditId(null); setShowForm(false); load();
@@ -74,7 +74,7 @@ const Instructors = () => {
 
   const remove = async (id) => {
     if (!window.confirm('Delete this instructor?')) return;
-    await api.delete(`/instructors/${id}`); toast.success('Deleted'); load();
+    await api.delete(`/instructors?id=${id}`); toast.success('Deleted'); load();
   };
 
   const handleApprove = async (id) => {

@@ -51,7 +51,7 @@ const Schedules = () => {
   const save = async (e) => {
     e.preventDefault();
     try {
-      if (editId) await api.put(`/schedules/${editId}`, form);
+      if (editId) await api.put(`/schedules?id=${editId}`, form);
       else await api.post('/schedules', form);
       toast.success(editId ? 'Schedule updated' : 'Schedule added');
       setForm(empty); setEditId(null); setShowForm(false); load();
@@ -60,7 +60,7 @@ const Schedules = () => {
 
   const remove = async (id) => {
     if (!window.confirm('Delete this schedule?')) return;
-    await api.delete(`/schedules/${id}`); toast.success('Deleted'); load();
+    await api.delete(`/schedules?id=${id}`); toast.success('Deleted'); load();
   };
 
   const startEdit = (s) => {
