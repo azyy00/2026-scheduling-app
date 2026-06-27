@@ -110,63 +110,74 @@ const Instructors = () => {
 
   const pendingRequests = requests.filter(r => r.status === 'pending');
 
+  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C] transition';
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-gray-800">Instructors</h2>
-          {pendingRequests.length > 0 && (
-            <button onClick={() => setShowRequests(v => !v)}
-              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 transition">
-              ⏳ {pendingRequests.length} Pending Activation{pendingRequests.length > 1 ? 's' : ''}
-            </button>
-          )}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">Instructors</h1>
+            {pendingRequests.length > 0 && (
+              <button onClick={() => setShowRequests(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {pendingRequests.length} Pending Activation{pendingRequests.length > 1 ? 's' : ''}
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 mt-0.5">{instructors.length} instructor{instructors.length !== 1 ? 's' : ''} registered</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
           <button onClick={() => csvRef.current.click()} disabled={importing}
-            className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1.5">
-            {importing ? 'Importing...' : '⬆ Import CSV'}
+            className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            {importing ? 'Importing...' : 'Import CSV'}
           </button>
-          <a href={'data:text/csv;charset=utf-8,' + encodeURIComponent(
-              'name,department,position\n' +
-              'Juan dela Cruz,BPED,Instructor I\n' +
-              'Maria Santos,BECED,Assistant Professor II\n' +
-              'Jose Reyes,BCAED,Part-time Instructor\n'
-            )}
+          <a href={'data:text/csv;charset=utf-8,' + encodeURIComponent('name,department,position\nJuan dela Cruz,BPED,Instructor I\nMaria Santos,BECED,Assistant Professor II\nJose Reyes,BCAED,Part-time Instructor\n')}
             download="instructors_template.csv"
-            className="border border-gray-300 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-50">
-            ⬇ Template
+            className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Template
           </a>
           <button onClick={() => { setForm(empty); setEditId(null); setShowForm(true); }}
-            className="text-white px-4 py-2 rounded-lg text-sm" style={{ background: '#7B1C1C' }}>
-            + Add Instructor
+            className="inline-flex items-center gap-2 bg-[#7B1C1C] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#6a1717] transition shadow-sm">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Instructor
           </button>
         </div>
       </div>
 
       {/* Activation Requests Panel */}
       {showRequests && pendingRequests.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
-          <h3 className="text-sm font-semibold text-amber-800 mb-3">Pending Activation Requests</h3>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-5">
+          <h3 className="text-sm font-bold text-amber-800 mb-3">Pending Activation Requests</h3>
           <div className="flex flex-col gap-2">
             {pendingRequests.map(r => (
-              <div key={r.id} className="bg-white border border-amber-100 rounded-lg px-4 py-3 flex items-center justify-between gap-4">
+              <div key={r.id} className="bg-white border border-amber-100 rounded-lg px-4 py-3.5 flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-medium text-sm text-gray-800">{r.instructor_name}</p>
-                  <p className="text-xs text-gray-500">
-                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs mr-2 ${progBadge(r.department)}`}>{r.department || '—'}</span>
-                    Requesting username: <span className="font-mono font-medium">{r.desired_username}</span>
+                  <p className="font-bold text-sm text-gray-900">{r.instructor_name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold mr-2 ${progBadge(r.department)}`}>{r.department || '—'}</span>
+                    Username requested: <span className="font-mono font-semibold text-gray-700">{r.desired_username}</span>
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{new Date(r.created_at).toLocaleDateString()}</p>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <button onClick={() => handleApprove(r.id)}
-                    className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium">
+                    className="text-xs px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold transition">
                     Approve
                   </button>
                   <button onClick={() => handleReject(r.id)}
-                    className="text-xs px-3 py-1.5 border border-red-300 text-red-500 rounded-lg hover:bg-red-50">
+                    className="text-xs px-3.5 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 font-semibold transition">
                     Reject
                   </button>
                 </div>
@@ -176,118 +187,118 @@ const Instructors = () => {
         </div>
       )}
 
-      {/* Add/Edit Form */}
+      {/* Form */}
       {showForm && (
-        <form onSubmit={save} className="bg-white border rounded-xl p-5 mb-6 grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Full Name</label>
-            <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" placeholder="e.g. Juan dela Cruz" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Department / Program</label>
-            <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1">
-              <option value="">— Select —</option>
-              {PROGRAMS.map(p => <option key={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="col-span-2">
-            <label className="text-xs text-gray-500 font-medium">Position / Rank</label>
-            <select value={form.position} onChange={e => setForm({ ...form, position: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1">
-              <option value="">— Select position —</option>
-              {POSITIONS.map(p => <option key={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 font-medium">
-              Username <span className="text-gray-400">(optional — instructor can request via Sign Up)</span>
-            </label>
-            <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" placeholder="Leave blank to let instructor request" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 font-medium">
-              Password {editId && <span className="text-gray-400">(leave blank to keep)</span>}
-            </label>
-            <input type="password" required={!editId && !!form.username} value={form.password}
-              onChange={e => setForm({ ...form, password: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
-          </div>
-          <div className="col-span-2 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm text-white rounded-lg" style={{ background: '#7B1C1C' }}>
-              {editId ? 'Update' : 'Add'}
-            </button>
-          </div>
-        </form>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-800 mb-4">{editId ? 'Edit Instructor' : 'Add New Instructor'}</h3>
+          <form onSubmit={save} className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Full Name</label>
+              <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                className={inputCls} placeholder="e.g. Juan dela Cruz" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Department / Program</label>
+              <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className={inputCls}>
+                <option value="">— Select —</option>
+                {PROGRAMS.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Position / Rank</label>
+              <select value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} className={inputCls}>
+                <option value="">— Select position —</option>
+                {POSITIONS.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Username <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
+                className={inputCls} placeholder="Leave blank — instructor can request via Sign Up" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Password {editId && <span className="text-gray-400 font-normal">(leave blank to keep current)</span>}
+              </label>
+              <input type="password" required={!editId && !!form.username} value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })} className={inputCls} />
+            </div>
+            <div className="col-span-2 flex gap-2 justify-end border-t border-gray-100 pt-4">
+              <button type="button" onClick={() => { setShowForm(false); setEditId(null); }}
+                className="px-4 py-2.5 text-sm border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition">Cancel</button>
+              <button type="submit"
+                className="px-5 py-2.5 text-sm bg-[#7B1C1C] text-white rounded-lg font-semibold hover:bg-[#6a1717] transition">
+                {editId ? 'Update Instructor' : 'Add Instructor'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Table */}
-      {pageLoading ? <TableSkeleton rows={6} cols={6} /> : <div className="bg-white rounded-xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">Instructor</th>
-              <th className="px-4 py-3 text-left">Position</th>
-              <th className="px-4 py-3 text-left">Program</th>
-              <th className="px-4 py-3 text-left">Username</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {instructors.map(inst => (
-              <tr key={inst.id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <button onClick={() => navigate(`/admin/instructors/${inst.id}/schedule`)}
-                    className="font-medium text-left hover:underline flex items-center gap-2 group" style={{ color: '#7B1C1C' }}>
-                    <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: '#7B1C1C' }}>
-                      {inst.name?.charAt(0).toUpperCase()}
-                    </span>
-                    {inst.name}
-                    <span className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→ Schedule</span>
-                  </button>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="text-xs text-gray-600">{inst.position || <span className="text-gray-300">—</span>}</span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${progBadge(inst.department)}`}>
-                    {inst.department || '—'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500 text-sm font-mono">{inst.username || '—'}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusBadge(inst.status)}`}>
-                    {inst.status === 'unactivated' ? 'Not activated' : inst.status === 'pending' ? '⏳ Pending' : '✓ Active'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex gap-3 justify-end items-center">
-                    <button onClick={() => navigate(`/admin/instructors/${inst.id}/schedule`)}
-                      className="text-xs font-medium px-2 py-1 rounded border transition hover:bg-gray-50"
-                      style={{ color: '#7B1C1C', borderColor: '#7B1C1C' }}>
-                      Schedule
-                    </button>
-                    <button onClick={() => { setForm({ name: inst.name, department: inst.department || '', position: inst.position || '', username: inst.username || '', password: '' }); setEditId(inst.id); setShowForm(true); }}
-                      className="text-blue-600 hover:underline text-xs">Edit</button>
-                    <button onClick={() => remove(inst.id)} className="text-red-500 hover:underline text-xs">Delete</button>
-                  </div>
-                </td>
+      {pageLoading ? <TableSkeleton rows={6} cols={6} /> : (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                {['Instructor','Position','Program','Username','Status','Actions'].map((h, i) => (
+                  <th key={h} className={`px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider ${i === 5 ? 'text-right' : 'text-left'}`}>{h}</th>
+                ))}
               </tr>
-            ))}
-            {instructors.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No instructors yet. Add one or import a CSV.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>}
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {instructors.map(inst => (
+                <tr key={inst.id} className="hover:bg-gray-50 transition">
+                  <td className="px-5 py-3.5">
+                    <button onClick={() => navigate(`/admin/instructors/${inst.id}/schedule`)}
+                      className="flex items-center gap-2.5 group text-left">
+                      <span className="w-8 h-8 rounded-full bg-[#7B1C1C] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {inst.name?.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="font-semibold text-gray-900 group-hover:text-[#7B1C1C] transition">
+                        {inst.name}
+                        <span className="block text-xs text-gray-400 font-normal opacity-0 group-hover:opacity-100 transition">View schedule →</span>
+                      </span>
+                    </button>
+                  </td>
+                  <td className="px-5 py-3.5 text-xs text-gray-600">{inst.position || <span className="text-gray-300">—</span>}</td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-xs px-2.5 py-1 rounded-md font-semibold ${progBadge(inst.department)}`}>
+                      {inst.department || '—'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-gray-500">{inst.username || '—'}</td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-xs px-2.5 py-1 rounded-md font-semibold ${statusBadge(inst.status)}`}>
+                      {inst.status === 'unactivated' ? 'Not activated' : inst.status === 'pending' ? 'Pending' : 'Active'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => navigate(`/admin/instructors/${inst.id}/schedule`)}
+                        className="text-xs font-semibold text-[#7B1C1C] border border-[#7B1C1C]/30 px-3 py-1.5 rounded-lg hover:bg-[#7B1C1C]/5 transition">
+                        Schedule
+                      </button>
+                      <button onClick={() => { setForm({ name: inst.name, department: inst.department || '', position: inst.position || '', username: inst.username || '', password: '' }); setEditId(inst.id); setShowForm(true); }}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition">Edit</button>
+                      <button onClick={() => remove(inst.id)}
+                        className="text-xs font-semibold text-red-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {instructors.length === 0 && (
+                <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400 text-sm">No instructors yet — add one or import a CSV.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {/* CSV format hint */}
-      <p className="text-xs text-gray-400 mt-2">
-        CSV format: <span className="font-mono">name, department, position</span> — Download the template above for reference.
+      <p className="text-xs text-gray-400 mt-3">
+        CSV columns: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">name, department, position</span>
       </p>
     </div>
   );

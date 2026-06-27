@@ -81,93 +81,112 @@ const Subjects = () => {
     s.name?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C] transition';
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <h2 className="text-xl font-bold text-gray-800">
-          Subjects
-          <span className="ml-2 text-sm font-normal text-gray-400">({subjects.length} total)</span>
-        </h2>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Subjects</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{subjects.length} subject{subjects.length !== 1 ? 's' : ''} in curriculum</p>
+        </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
           <button onClick={() => csvRef.current.click()} disabled={importing}
-            className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50">
-            {importing ? 'Importing...' : '⬆ Import CSV'}
+            className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            {importing ? 'Importing...' : 'Import CSV'}
           </button>
           <a href={TEMPLATE_CSV} download="subjects_template.csv"
-            className="border border-gray-300 text-gray-500 px-3 py-2 rounded-lg text-sm hover:bg-gray-50">
-            ⬇ Template
+            className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Template
           </a>
           <button onClick={() => { setForm(empty); setEditId(null); setShowForm(true); }}
-            className="text-white px-4 py-2 rounded-lg text-sm" style={{ background: '#7B1C1C' }}>
-            + Add Subject
+            className="inline-flex items-center gap-2 bg-[#7B1C1C] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#6a1717] transition shadow-sm">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Subject
           </button>
         </div>
       </div>
 
       {/* Search */}
-      <div className="mb-4">
+      <div className="mb-5">
         <input value={search} onChange={e => setSearch(e.target.value)}
-          className="border rounded-lg px-3 py-1.5 text-sm bg-white w-56" placeholder="Search code or name..." />
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white w-60 focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C]"
+          placeholder="Search code or subject name..." />
       </div>
 
+      {/* Form */}
       {showForm && (
-        <form onSubmit={save} className="bg-white border rounded-xl p-5 mb-6 grid grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Subject Code</label>
-            <input required value={form.code} onChange={e => setForm({ ...form, code: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" placeholder="e.g. PE101" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Subject Name</label>
-            <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" placeholder="e.g. Physical Education 1" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Units</label>
-            <input type="number" min="1" max="9" value={form.units} onChange={e => setForm({ ...form, units: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1" placeholder="3" />
-          </div>
-          <div className="col-span-3 flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm text-white rounded-lg" style={{ background: '#7B1C1C' }}>
-              {editId ? 'Update' : 'Add'}
-            </button>
-          </div>
-        </form>
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-800 mb-4">{editId ? 'Edit Subject' : 'Add New Subject'}</h3>
+          <form onSubmit={save} className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Subject Code</label>
+              <input required value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} className={inputCls} placeholder="e.g. PE101" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Subject Name</label>
+              <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="e.g. Physical Education 1" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Units</label>
+              <input type="number" min="1" max="9" value={form.units} onChange={e => setForm({ ...form, units: e.target.value })} className={inputCls} placeholder="3" />
+            </div>
+            <div className="col-span-3 flex gap-2 justify-end border-t border-gray-100 pt-4">
+              <button type="button" onClick={() => { setShowForm(false); setEditId(null); }}
+                className="px-4 py-2.5 text-sm border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition">Cancel</button>
+              <button type="submit"
+                className="px-5 py-2.5 text-sm bg-[#7B1C1C] text-white rounded-lg font-semibold hover:bg-[#6a1717] transition">
+                {editId ? 'Update Subject' : 'Add Subject'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
+      {/* Table */}
       {pageLoading ? <TableSkeleton rows={6} cols={4} /> : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
-              <tr>
-                <th className="px-4 py-3 text-left">Code</th>
-                <th className="px-4 py-3 text-left">Name</th>
-                <th className="px-4 py-3 text-left">Units</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                {['Code','Name','Units','Actions'].map((h, i) => (
+                  <th key={h} className={`px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider ${i === 3 ? 'text-right' : 'text-left'}`}>{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {filtered.map(s => (
-                <tr key={s.id} className="border-t hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium font-mono" style={{ color: '#7B1C1C' }}>{s.code}</td>
-                  <td className="px-4 py-3">{s.name}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                <tr key={s.id} className="hover:bg-gray-50 transition">
+                  <td className="px-5 py-3.5 font-mono font-bold text-[#7B1C1C]">{s.code}</td>
+                  <td className="px-5 py-3.5 text-gray-800 font-medium">{s.name}</td>
+                  <td className="px-5 py-3.5">
+                    <span className="text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-semibold">
                       {s.units} {s.units === 1 ? 'unit' : 'units'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right flex gap-2 justify-end">
-                    <button onClick={() => { setForm({ code: s.code, name: s.name, units: String(s.units) }); setEditId(s.id); setShowForm(true); }}
-                      className="text-blue-600 hover:underline text-xs">Edit</button>
-                    <button onClick={() => remove(s.id)} className="text-red-500 hover:underline text-xs">Delete</button>
+                  <td className="px-5 py-3.5 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => { setForm({ code: s.code, name: s.name, units: String(s.units) }); setEditId(s.id); setShowForm(true); }}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition">Edit</button>
+                      <button onClick={() => remove(s.id)}
+                        className="text-xs font-semibold text-red-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">Delete</button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                  {subjects.length === 0 ? 'No subjects yet. Add one or import a CSV.' : 'No subjects match the search.'}
+                <tr><td colSpan={4} className="px-5 py-12 text-center text-gray-400 text-sm">
+                  {subjects.length === 0 ? 'No subjects yet — add one or import a CSV.' : 'No subjects match the search.'}
                 </td></tr>
               )}
             </tbody>
@@ -175,8 +194,8 @@ const Subjects = () => {
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-2">
-        CSV format: <span className="font-mono">code, name, units</span> — Download the template above for reference.
+      <p className="text-xs text-gray-400 mt-3">
+        CSV columns: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">code, name, units</span>
       </p>
     </div>
   );
