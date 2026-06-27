@@ -65,7 +65,7 @@ const Subjects = () => {
       try {
         const rows = parseCSV(ev.target.result);
         if (rows.length === 0) return toast.error('No valid rows found. Check CSV format.');
-        const { data } = await api.post('/subjects/import', { rows });
+        const { data } = await api.post('/subjects?action=import', { rows });
         toast.success(`Imported ${data.inserted} subject(s). ${data.skipped} skipped.`);
         if (data.errors?.length) data.errors.slice(0, 3).forEach(err => toast.error(err, { duration: 4000 }));
         load();

@@ -46,7 +46,7 @@ const Dashboard = () => {
   const [saving, setSaving] = useState(false);
 
   const load = () => {
-    api.get('/dashboard/stats').then(({ data }) => setStats(data)).catch(() => {});
+    api.get('/misc?action=dashboard-stats').then(({ data }) => setStats(data)).catch(() => {});
     api.get('/schedules').then(({ data }) => setSchedules(data)).catch(() => {});
     Promise.all([
       api.get('/subjects'), api.get('/instructors'),

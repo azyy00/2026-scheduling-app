@@ -54,7 +54,7 @@ const Instructors = () => {
     if (showSpinner) setPageLoading(true);
     Promise.all([
       api.get('/instructors'),
-      api.get('/admin/activation-requests'),
+      api.get('/misc?action=activation-requests'),
     ]).then(([inst, reqs]) => {
       setInstructors(inst.data);
       setRequests(reqs.data);
@@ -79,14 +79,14 @@ const Instructors = () => {
 
   const handleApprove = async (id) => {
     try {
-      await api.post(`/admin/activation-requests?id=${id}&action=approve`);
+      await api.post(`/misc?action=activation-requests&id=${id}&act=approve`);
       toast.success('Account activated!'); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Error'); }
   };
 
   const handleReject = async (id) => {
     if (!window.confirm('Reject this request?')) return;
-    await api.post(`/admin/activation-requests?id=${id}&action=reject`);
+    await api.post(`/misc?action=activation-requests&id=${id}&act=reject`);
     toast.success('Request rejected.'); load();
   };
 
@@ -99,7 +99,7 @@ const Instructors = () => {
       try {
         const rows = parseCSV(ev.target.result);
         if (rows.length === 0) return toast.error('No valid rows found in CSV.');
-        const { data } = await api.post('/instructors/import', { rows });
+        const { data } = await api.post('/instructors?action=import', { rows });
         toast.success(`Imported ${data.inserted} instructor(s). ${data.skipped} skipped.`);
         load();
       } catch (err) { toast.error('Import failed.'); }

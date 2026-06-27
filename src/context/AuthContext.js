@@ -11,9 +11,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials, role) => {
     setLoading(true);
     try {
-      const endpoint =
-        role === 'student' ? '/auth/student-login' : '/auth/login';
-      const { data } = await api.post(endpoint, credentials);
+      const action = role === 'student' ? 'student-login' : 'login';
+      const { data } = await api.post(`/auth?action=${action}`, credentials);
       saveToken(data.token);
       setUser(getUser());
       return { success: true };

@@ -70,7 +70,7 @@ const LoginPage = () => {
       return toast.error('Password must be at least 6 characters.');
     setSignupLoading(true);
     try {
-      const { data } = await api.post('/auth/instructor-signup', {
+      const { data } = await api.post('/auth?action=instructor-signup', {
         last_name: signupForm.last_name,
         first_name: signupForm.first_name,
         desired_username: signupForm.desired_username,

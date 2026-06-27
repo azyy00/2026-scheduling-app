@@ -36,7 +36,7 @@ const Navbar = () => {
   const fetchNotifications = useCallback(async () => {
     if (user?.role !== 'admin') return;
     try {
-      const { data } = await api.get('/admin/activation-requests');
+      const { data } = await api.get('/misc?action=activation-requests');
       const pending = data.filter(r => r.status === 'pending');
       setPendingCount(pending.length);
       setPendingList(pending);
@@ -67,7 +67,7 @@ const Navbar = () => {
     if (pwForm.next.length < 6) return toast.error('Password must be at least 6 characters.');
     setPwLoading(true);
     try {
-      const { data } = await api.post('/auth/change-password', {
+      const { data } = await api.post('/auth?action=change-password', {
         current_password: pwForm.current,
         new_password: pwForm.next,
       });

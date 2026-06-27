@@ -10,7 +10,7 @@ const Dashboard = () => {
   const [filterSemester, setFilterSemester] = useState('');
 
   useEffect(() => {
-    api.get('/instructor/schedules')
+    api.get('/misc?action=instructor-schedules')
       .then(({ data }) => setSchedules(data))
       .finally(() => setLoading(false));
   }, []);

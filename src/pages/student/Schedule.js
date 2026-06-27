@@ -10,7 +10,7 @@ const Schedule = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/student/schedules').then(({ data }) => setSchedules(data)).finally(() => setLoading(false));
+    api.get('/misc?action=student-schedules').then(({ data }) => setSchedules(data)).finally(() => setLoading(false));
   }, []);
 
   const byDay = days.reduce((acc, d) => {
