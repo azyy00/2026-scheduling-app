@@ -24,3 +24,7 @@ yarn-error.log*
 
 .vercel
 .env*
+!.env.example
+
+# local editor / agent tooling
+.claude/

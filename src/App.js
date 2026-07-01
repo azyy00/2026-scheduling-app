@@ -20,6 +20,7 @@ const Subjects          = lazy(() => import('./pages/admin/Subjects'));
 const Students          = lazy(() => import('./pages/admin/Students'));
 const InstructorDashboard = lazy(() => import('./pages/instructor/Dashboard'));
 const StudentSchedule   = lazy(() => import('./pages/student/Schedule'));
+const EventsPage        = lazy(() => import('./pages/shared/Events'));
 
 // Page-level loading fallback
 const PageLoader = () => (
@@ -54,11 +55,12 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Toaster
-          position="top-right"
+          position="top-center"
           toastOptions={{
             duration: 3500,
             style: { fontSize: '13px', maxWidth: '360px' },
-            success: { iconTheme: { primary: '#7B1C1C', secondary: '#fff' } },
+            success: { iconTheme: { primary: '#16a34a', secondary: '#fff' }, style: { borderLeft: '4px solid #16a34a' } },
+            error: { duration: 4000, iconTheme: { primary: '#dc2626', secondary: '#fff' }, style: { borderLeft: '4px solid #dc2626', fontWeight: 500 } },
           }}
         />
         <ChunkErrorBoundary>
@@ -89,6 +91,9 @@ function App() {
 
             {/* Student */}
             <Route path="/student/schedule" element={<StudentLayout><StudentSchedule /></StudentLayout>} />
+
+            {/* Shared Events page — accessible to all roles */}
+            <Route path="/events" element={<ProtectedRoute allowedRoles={['admin','instructor','student']}><Layout><EventsPage /></Layout></ProtectedRoute>} />
           </Routes>
         </Suspense>
         </ChunkErrorBoundary>

@@ -1,87 +1,328 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import ScheduleCalendar from '../../components/common/ScheduleCalendar';
+import AnalyticsPanel from '../../components/common/AnalyticsPanel';
+import { Eye, Pencil } from 'lucide-react';
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-const TIMES = [
-  '7:30 AM','8:30 AM','9:30 AM','10:30 AM','11:30 AM',
-  '12:30 PM','1:30 PM','2:30 PM','3:30 PM','4:30 PM',
-  '5:30 PM','6:30 PM','7:00 PM',
-];
-const TIME_VALUES = [
-  '07:30','08:30','09:30','10:30','11:30',
-  '12:30','13:30','14:30','15:30','16:30',
-  '17:30','18:30','19:00',
-];
 const PROGRAMS = ['BPED','BECED','BCAED'];
 
-const progColor = (name = '') => {
-  if (name.startsWith('BPED'))  return 'bg-blue-100 border-l-4 border-blue-500 text-blue-900';
-  if (name.startsWith('BECED')) return 'bg-green-100 border-l-4 border-green-500 text-green-900';
-  if (name.startsWith('BCAED'))return 'bg-purple-100 border-l-4 border-purple-500 text-purple-900';
-  return 'bg-gray-100 border-l-4 border-gray-400 text-gray-800';
+const fmtTime = (t) => {
+  if (!t) return '';
+  const [h, m] = t.split(':');
+  const hour = parseInt(h);
+  return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`;
 };
 
-const StatCard = ({ label, value, color }) => (
-  <div className={`rounded-xl p-4 text-white shadow ${color}`}>
-    <p className="text-xs opacity-80">{label}</p>
-    <p className="text-2xl font-bold mt-1">{value ?? '—'}</p>
-  </div>
+const fmtDateTime = (value) => {
+  if (!value) return 'Unknown';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+const conflictTypeLabel = (detail) => {
+  const types = detail?.types?.length ? detail.types : ['Schedule'];
+  return `${types.join(' + ')} conflict`;
+};
+
+const scheduleLine = (s) => {
+  if (!s) return '';
+  return `${s.day_of_week || ''} ${fmtTime(s.time_start)}-${fmtTime(s.time_end)}`.trim();
+};
+
+const ConflictClassCard = ({ title, schedule, emphasis, onEditSchedule }) => {
+  if (!schedule) return null;
+  return (
+    <div className={`rounded-xl border p-4 ${emphasis === 'first' ? 'border-emerald-200 bg-emerald-50/70' : 'border-red-200 bg-red-50/70'}`}>
+      <p className={`text-[11px] font-black uppercase tracking-wider ${emphasis === 'first' ? 'text-emerald-700' : 'text-red-700'}`}>{title}</p>
+      <div className="mt-2">
+        <p className="text-base font-black text-gray-900">{schedule.subject_code || 'Subject'}</p>
+        {schedule.subject_name && <p className="text-xs text-gray-500 mt-0.5">{schedule.subject_name}</p>}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="font-bold text-gray-400 uppercase tracking-wide">Section</p>
+          <p className="font-semibold text-gray-800">{schedule.section_name || 'Unknown'}</p>
+        </div>
+        <div>
+          <p className="font-bold text-gray-400 uppercase tracking-wide">Room</p>
+          <p className="font-semibold text-gray-800">{schedule.room_code || 'Unknown'}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="font-bold text-gray-400 uppercase tracking-wide">Instructor</p>
+          <p className="font-semibold text-gray-800">{schedule.instructor_name || 'Unknown'}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="font-bold text-gray-400 uppercase tracking-wide">Schedule</p>
+          <p className="font-semibold text-gray-800">{scheduleLine(schedule)}</p>
+        </div>
+        <div className="col-span-2">
+          <p className="font-bold text-gray-400 uppercase tracking-wide">Created</p>
+          <p className="font-semibold text-gray-800">{fmtDateTime(schedule.created_at)}</p>
+        </div>
+      </div>
+      {onEditSchedule && schedule.id && (
+        <button
+          type="button"
+          onClick={() => onEditSchedule(schedule)}
+          className={`mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black text-white shadow-sm transition focus:outline-none focus:ring-2 ${
+            emphasis === 'first'
+              ? 'bg-emerald-700 hover:bg-emerald-800 focus:ring-emerald-200'
+              : 'bg-[#7B1C1C] hover:bg-[#6a1717] focus:ring-red-200'
+          }`}
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          Edit schedule
+        </button>
+      )}
+    </div>
+  );
+};
+
+const ConflictDetailModal = ({ detail, onClose, onEditSchedule }) => {
+  if (!detail) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-red-600">Conflict details</p>
+            <h3 className="text-lg font-black text-gray-900 mt-1">{conflictTypeLabel(detail)}</h3>
+            {detail.labels?.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">{detail.labels.join(' | ')}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Close conflict details"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-5 py-5">
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-xs font-semibold text-amber-800">
+              The first-created schedule is the older record. The later-created schedule is the newer record to review or adjust.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <ConflictClassCard title="First created schedule" schedule={detail.first_created} emphasis="first" onEditSchedule={onEditSchedule} />
+            <ConflictClassCard title="Later created schedule" schedule={detail.later_created} emphasis="later" onEditSchedule={onEditSchedule} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const STAT_ICONS = {
+  schedules: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  ),
+  classrooms: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    </svg>
+  ),
+  instructors: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+  conflicts: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+  ),
+};
+
+const CheckIcon = () => (
+  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+  </svg>
 );
+
+// One segment of the unified status console.
+const StatSegment = ({ label, value, iconKey, sublabel, tone = 'info', actionLabel, onAction }) => {
+  const isConflict = tone === 'conflict';
+  const alert = isConflict && value > 0;
+
+  const chip = !isConflict
+    ? 'bg-[#7B1C1C]/10 text-[#7B1C1C] dark:bg-[#7B1C1C]/30 dark:text-red-300'
+    : alert
+      ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
+      : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400';
+
+  const numCls = alert ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white';
+
+  return (
+    <div className={`relative p-5 transition-colors ${alert ? 'bg-red-50/70 dark:bg-red-900/15' : 'hover:bg-gray-50/70 dark:hover:bg-gray-800/40'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">{label}</p>
+        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${chip}`}>
+          {isConflict && !alert ? <CheckIcon /> : STAT_ICONS[iconKey]}
+        </span>
+      </div>
+      <p className={`text-[2rem] leading-none font-black tabular-nums mt-3 ${numCls}`}>{value ?? '—'}</p>
+      {isConflict ? (
+        alert ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-red-600 dark:text-red-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Needs review
+            </span>
+            {actionLabel && (
+              <button
+                type="button"
+                onClick={onAction}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[11px] font-black text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/30"
+              >
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                {actionLabel}
+              </button>
+            )}
+          </>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+            <CheckIcon /> All clear
+          </span>
+        )
+      ) : (
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">{sublabel}</p>
+      )}
+    </div>
+  );
+};
 
 const emptyInstructor = { name: '', department: 'BPED', username: '', password: '' };
 const emptyRoom = { room_code: '', capacity: '', usePreset: true };
 const emptySchedule = { subject_id: '', instructor_id: '', classroom_id: '', section_id: '', day_of_week: 'Monday', time_start: '07:30', time_end: '08:30', semester: '1st', school_year: '' };
+
+const defaultSchoolYear = () => {
+  const year = new Date().getFullYear();
+  return `${year}-${year + 1}`;
+};
+
+const timeInputValue = (value) => (value || '').slice(0, 5);
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [schedules, setSchedules] = useState([]);
   const [options, setOptions] = useState({ subjects: [], instructors: [], classrooms: [], sections: [] });
   const [filterProgram, setFilterProgram] = useState('');
+  const [filterYear, setFilterYear] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [modal, setModal] = useState(null);
   const [instForm, setInstForm] = useState(emptyInstructor);
   const [roomForm, setRoomForm] = useState(emptyRoom);
   const [schedForm, setSchedForm] = useState(emptySchedule);
   const [saving, setSaving] = useState(false);
+  const [selectedConflict, setSelectedConflict] = useState(null);
+  const [editingScheduleId, setEditingScheduleId] = useState(null);
+  const [term, setTerm] = useState(null);
 
   const load = () => {
     api.get('/misc?action=dashboard-stats').then(({ data }) => setStats(data)).catch(() => {});
     api.get('/schedules').then(({ data }) => setSchedules(data)).catch(() => {});
     Promise.all([
       api.get('/subjects'), api.get('/instructors'),
-      api.get('/classrooms'), api.get('/sections'),
-    ]).then(([s, i, c, sec]) => setOptions({ subjects: s.data, instructors: i.data, classrooms: c.data, sections: sec.data })).catch(() => {});
+      api.get('/classrooms'), api.get('/sections'), api.get('/term?action=get'),
+    ]).then(([s, i, c, sec, t]) => {
+      setOptions({ subjects: s.data, instructors: i.data, classrooms: c.data, sections: sec.data });
+      setTerm(t.data);
+      setSchedForm(form => ({
+        ...form,
+        school_year: form.school_year || t.data.active_school_year || form.school_year,
+        semester: form.semester || t.data.active_semester || form.semester,
+      }));
+    }).catch(() => {});
   };
   useEffect(() => { load(); }, []);
+
+  // Year prefix map: "1" → section names containing "-1" (e.g. BPED-1A, BECED-1B)
+  const filteredSections = options.sections.filter(s => {
+    if (filterProgram && !s.name?.startsWith(filterProgram)) return false;
+    if (filterYear && !s.name?.includes(`-${filterYear}`)) return false;
+    return true;
+  });
 
   const filteredSchedules = schedules.filter(s => {
     if (filterSection && String(s.section_id) !== filterSection) return false;
     if (filterProgram && !s.section_name?.startsWith(filterProgram)) return false;
+    if (filterYear && !s.section_name?.includes(`-${filterYear}`)) return false;
     return true;
   });
 
-  const getSlotIndex = (timeStart) => {
-    const t = timeStart?.slice(0, 5);
-    if (!t) return -1;
-    let idx = -1;
-    for (let i = 0; i < TIME_VALUES.length; i++) {
-      if (TIME_VALUES[i] <= t) idx = i;
-      else break;
-    }
-    return idx;
+  const blankScheduleForm = (overrides = {}) => ({
+    ...emptySchedule,
+    semester: term?.active_semester || emptySchedule.semester,
+    school_year: term?.active_school_year || defaultSchoolYear(),
+    ...overrides,
+  });
+
+  const scheduleToForm = (schedule) => ({
+    subject_id: String(schedule.subject_id || ''),
+    instructor_id: String(schedule.instructor_id || ''),
+    classroom_id: String(schedule.classroom_id || ''),
+    section_id: String(schedule.section_id || ''),
+    day_of_week: schedule.day_of_week || emptySchedule.day_of_week,
+    time_start: timeInputValue(schedule.time_start) || emptySchedule.time_start,
+    time_end: timeInputValue(schedule.time_end) || emptySchedule.time_end,
+    semester: schedule.semester || term?.active_semester || emptySchedule.semester,
+    school_year: schedule.school_year || term?.active_school_year || defaultSchoolYear(),
+  });
+
+  const openCreateSchedule = (slot = {}) => {
+    setEditingScheduleId(null);
+    setSchedForm(blankScheduleForm(slot));
+    setModal('schedule');
   };
 
-  const getEndSlotIndex = (timeEnd) => {
-    const t = timeEnd?.slice(0, 5);
-    if (!t) return -1;
-    // Last slot whose time is < timeEnd (last row the event occupies)
-    let idx = -1;
-    for (let i = 0; i < TIME_VALUES.length; i++) {
-      if (TIME_VALUES[i] < t) idx = i;
-      else break;
+  const openEditSchedule = (schedule) => {
+    if (!schedule?.id || !schedule.subject_id || !schedule.instructor_id || !schedule.classroom_id || !schedule.section_id) {
+      toast.error('Schedule details are still loading. Please try again.');
+      return;
     }
-    return idx < 0 ? 0 : idx;
+    setSelectedConflict(null);
+    setEditingScheduleId(schedule.id);
+    setSchedForm(scheduleToForm(schedule));
+    setModal('schedule');
+  };
+
+  const openConflictSchedule = () => {
+    const conflictSchedule = schedules.find(s => s.conflicts?.length > 0);
+    const firstDetail = conflictSchedule?.conflict_details?.[0];
+
+    if (firstDetail) {
+      setSelectedConflict(firstDetail);
+      return;
+    }
+
+    if (conflictSchedule) {
+      setSelectedConflict({
+        labels: conflictSchedule.conflicts,
+        types: ['Schedule'],
+        first_created: conflictSchedule,
+        later_created: null,
+      });
+      return;
+    }
+
+    toast.error('Conflict schedules are still loading.');
   };
 
   const saveInstructor = async (e) => {
@@ -103,136 +344,199 @@ const Dashboard = () => {
   const saveSchedule = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      await api.post('/schedules', schedForm);
-      toast.success('Schedule added'); setModal(null); setSchedForm(emptySchedule); load();
+      if (editingScheduleId) await api.put(`/schedules?id=${editingScheduleId}`, schedForm);
+      else await api.post('/schedules', schedForm);
+      toast.success(editingScheduleId ? 'Schedule updated' : 'Schedule added');
+      setModal(null); setEditingScheduleId(null); setSchedForm(blankScheduleForm()); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Error'); } finally { setSaving(false); }
+  };
+
+  // Delete directly from a calendar card (confirmation handled in the calendar modal)
+  const deleteSchedule = async (s) => {
+    if (!s?.id) return;
+    try {
+      await api.delete(`/schedules?id=${s.id}`);
+      toast.success('Schedule deleted');
+      load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Could not delete.'); }
   };
 
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h2 className="text-xl font-bold text-gray-800">Schedule — {stats?.school_year || '2024–2025'}</h2>
+      <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+        <div className="flex items-stretch gap-3">
+          <span className="w-1.5 rounded-full bg-[#7B1C1C] shrink-0" />
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#7B1C1C] dark:text-red-300">Academic Overview</p>
+            <h1 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Goa Community College · Goa, Camarines Sur</p>
+          </div>
+        </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setModal('instructor')} className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90" style={{background:'#059669'}}>+ Add Instructor</button>
-          <button onClick={() => setModal('room')} className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90" style={{background:'#7c3aed'}}>+ Add Room</button>
-          <button onClick={() => setModal('schedule')} className="text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90" style={{background:'#7B1C1C'}}>+ Add Schedule</button>
+          <button onClick={() => setModal('instructor')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Instructor
+          </button>
+          <button onClick={() => setModal('room')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Room
+          </button>
+          <button onClick={() => openCreateSchedule()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#6a1717]" style={{background:'#7B1C1C'}}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Add Schedule
+          </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <StatCard label="Total Schedules" value={stats?.schedules} color="bg-blue-600" />
-        <StatCard label="Classrooms" value={stats?.classrooms} color="bg-emerald-600" />
-        <StatCard label="Instructors" value={stats?.instructors} color="bg-violet-600" />
-        <StatCard label="Conflicts" value={stats?.conflicts} color="bg-red-500" />
+      {/* Status console */}
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-md shadow-gray-200/50 dark:shadow-black/30 overflow-hidden mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100 dark:divide-gray-800">
+          <StatSegment label="Schedules"   value={stats?.schedules}   iconKey="schedules"   sublabel="total entries" />
+          <StatSegment label="Classrooms"  value={stats?.classrooms}  iconKey="classrooms"  sublabel="available" />
+          <StatSegment label="Instructors" value={stats?.instructors} iconKey="instructors" sublabel="registered" />
+          <StatSegment label="Conflicts"   value={stats?.conflicts}   iconKey="conflicts"   tone="conflict" actionLabel="View conflict sched" onAction={openConflictSchedule} />
+        </div>
       </div>
 
+      {/* Analytics */}
+      <AnalyticsPanel />
+
       {/* Filters + Legend */}
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
         <div className="flex gap-2 flex-wrap">
-          <select value={filterProgram} onChange={e => setFilterProgram(e.target.value)} className="border rounded-lg px-3 py-1.5 text-sm bg-white">
+          <select value={filterProgram} onChange={e => { setFilterProgram(e.target.value); setFilterSection(''); }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/20 focus:border-[#7B1C1C]">
             <option value="">All Programs</option>
             {PROGRAMS.map(p => <option key={p}>{p}</option>)}
           </select>
-          <select value={filterSection} onChange={e => setFilterSection(e.target.value)} className="border rounded-lg px-3 py-1.5 text-sm bg-white">
+          <select value={filterYear} onChange={e => { setFilterYear(e.target.value); setFilterSection(''); }}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/20 focus:border-[#7B1C1C]">
+            <option value="">All Year Levels</option>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+          <select value={filterSection} onChange={e => setFilterSection(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/20 focus:border-[#7B1C1C]">
             <option value="">All Sections</option>
-            {options.sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {filteredSections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-        <div className="flex gap-3 text-xs text-gray-500 items-center">
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" />BPED</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" />BECED</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-purple-500 inline-block" />BCAED</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />Conflict</span>
+        <div className="flex gap-4 items-center">
+          {[['bg-pink-500','BPED'],['bg-yellow-400','BECED'],['bg-orange-500','BCAED'],['bg-red-500','Conflict']].map(([c,l]) => (
+            <span key={l} className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+              <span className={`w-2.5 h-2.5 rounded-sm ${c} shrink-0`} />{l}
+            </span>
+          ))}
         </div>
       </div>
 
-      {/* Calendar Grid — flat CSS grid so events can span multiple rows */}
-      <div className="bg-white border rounded-xl overflow-hidden" style={{
-        display: 'grid',
-        gridTemplateColumns: '64px repeat(7, minmax(0,1fr))',
-        gridTemplateRows: `auto repeat(${TIMES.length}, 52px)`,
-      }}>
-        {/* Header row */}
-        <div className="border-r border-b bg-gray-50" style={{ gridRow: 1, gridColumn: 1 }} />
-        {DAYS.map((d, i) => (
-          <div key={d} className={`border-b bg-gray-50 text-center py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide${i < 6 ? ' border-r' : ''}`}
-            style={{ gridRow: 1, gridColumn: i + 2 }}>
-            {d.slice(0,3)}
-          </div>
-        ))}
+      {/* Calendar Grid */}
+      <ScheduleCalendar
+        schedules={filteredSchedules}
+        onCreateSchedule={openCreateSchedule}
+        onEditSchedule={openEditSchedule}
+        onDeleteSchedule={deleteSchedule}
+      />
 
-        {/* Time labels */}
-        {TIMES.map((time, rowIdx) => (
-          <div key={`t${rowIdx}`} className="border-r border-b px-2 pt-1 text-right text-xs text-gray-400 font-medium whitespace-nowrap"
-            style={{ gridRow: rowIdx + 2, gridColumn: 1 }}>
-            {time}
-          </div>
-        ))}
-
-        {/* Background cells (borders only) */}
-        {TIMES.map((_, rowIdx) => DAYS.map((__, dayIdx) => (
-          <div key={`bg${rowIdx}-${dayIdx}`}
-            className={`border-b${dayIdx < 6 ? ' border-r' : ''}`}
-            style={{ gridRow: rowIdx + 2, gridColumn: dayIdx + 2 }} />
-        )))}
-
-        {/* Events — grouped by same day+startSlot, span rows based on duration */}
-        {(() => {
-          const groups = {};
-          filteredSchedules.forEach(s => {
-            const dayIdx = DAYS.indexOf(s.day_of_week);
-            const startIdx = getSlotIndex(s.time_start);
-            if (dayIdx === -1 || startIdx === -1) return;
-            const key = `${dayIdx}_${startIdx}`;
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(s);
-          });
-
-          return Object.entries(groups).map(([key, events]) => {
-            const [dayIdx, startIdx] = key.split('_').map(Number);
-            const endIdx = Math.max(...events.map(s => getEndSlotIndex(s.time_end)));
-            const span = Math.max(1, endIdx - startIdx + 1);
-
-            return (
-              <div key={key} style={{
-                gridRow: `${startIdx + 2} / span ${span}`,
-                gridColumn: dayIdx + 2,
-                padding: '2px',
-                zIndex: 2,
-                minWidth: 0,
-              }}>
-                {events.length === 1 ? (() => {
-                  const s = events[0];
+      {/* Schedule List View */}
+      {filteredSchedules.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            Schedule List
+          </h2>
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            {/* Table header */}
+            <div className="grid grid-cols-[1fr_1fr_110px_90px_90px_130px] gap-0 bg-gray-50 dark:bg-gray-800/70 border-b border-gray-200 dark:border-gray-800 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <span>Subject</span>
+              <span>Instructor</span>
+              <span>Section</span>
+              <span>Room</span>
+              <span>Day</span>
+              <span>Time / Conflict</span>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {[...filteredSchedules]
+                .sort((a, b) => DAYS.indexOf(a.day_of_week) - DAYS.indexOf(b.day_of_week) || a.time_start.localeCompare(b.time_start))
+                .map(s => {
                   const isConflict = s.conflicts?.length > 0;
+                  const conflictDetails = s.conflict_details || [];
                   return (
-                    <div className={`rounded text-xs p-1.5 h-full leading-tight relative${isConflict ? ' bg-red-100 border-l-4 border-red-500 text-red-900' : ' ' + progColor(s.section_name)}`}>
-                      {isConflict && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />}
-                      <div className="font-semibold truncate">{s.subject_code}</div>
-                      <div className="opacity-80 truncate">{s.section_name}</div>
-                      <div className="opacity-60 text-[10px] truncate">{s.room_code}</div>
-                      {isConflict && <div className="text-red-600 text-[10px] font-medium">⚠ Conflict</div>}
+                    <div key={s.id} className={`grid grid-cols-[1fr_1fr_110px_90px_90px_130px] gap-0 px-4 py-3 text-sm items-start transition ${isConflict ? 'bg-red-50 dark:bg-red-950/25' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{s.subject_code}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{s.subject_name}</p>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 truncate pr-2 pt-0.5">{s.instructor_name}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 pt-0.5">{s.section_name}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 pt-0.5">{s.room_code}</p>
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${
+                          s.day_of_week === 'Monday'    ? 'bg-blue-400' :
+                          s.day_of_week === 'Tuesday'   ? 'bg-indigo-400' :
+                          s.day_of_week === 'Wednesday' ? 'bg-violet-400' :
+                          s.day_of_week === 'Thursday'  ? 'bg-emerald-400' :
+                          s.day_of_week === 'Friday'    ? 'bg-amber-400' : 'bg-rose-400'
+                        }`} />
+                        <p className="text-xs text-gray-600 dark:text-gray-300">{s.day_of_week?.slice(0,3)}</p>
+                      </div>
+                      <div>
+                        {isConflict ? (
+                          <div>
+                            {conflictDetails.length > 0 ? (
+                              <div className="mb-1 flex flex-col gap-1">
+                                {conflictDetails.map((detail, i) => (
+                                  <button
+                                    key={`${detail.other_schedule_id || i}-${detail.types?.join('-') || 'conflict'}`}
+                                    type="button"
+                                    onClick={() => setSelectedConflict(detail)}
+                                    className="text-left text-[10px] font-bold text-red-700 dark:text-red-300 underline decoration-red-300 dark:decoration-red-500/60 underline-offset-2 hover:text-red-900 dark:hover:text-red-200"
+                                  >
+                                    View {conflictTypeLabel(detail)}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedConflict({
+                                  labels: s.conflicts,
+                                  types: ['Schedule'],
+                                  first_created: s,
+                                  later_created: null,
+                                })}
+                                className="mb-1 block text-left text-[10px] font-bold text-red-700 dark:text-red-300 underline decoration-red-300 dark:decoration-red-500/60 underline-offset-2 hover:text-red-900 dark:hover:text-red-200"
+                              >
+                                View conflict details
+                              </button>
+                            )}
+                            <span className="text-xs font-semibold text-[#7B1C1C] dark:text-red-200 bg-red-50 dark:bg-red-900/50 px-2 py-0.5 rounded-md whitespace-nowrap block mb-1">{fmtTime(s.time_start)}–{fmtTime(s.time_end)}</span>
+                            {s.conflicts.some(c => c.startsWith('Room')) && <span className="text-[10px] font-bold text-red-600 dark:text-red-300 block">⚠ Room conflict</span>}
+                            {s.conflicts.some(c => c.startsWith('Instructor')) && <span className="text-[10px] font-bold text-orange-600 dark:text-orange-300 block">⚠ Instructor conflict</span>}
+                          </div>
+                        ) : (
+                          <span className="text-xs font-semibold text-[#7B1C1C] dark:text-red-200 bg-red-50 dark:bg-red-900/40 px-2 py-0.5 rounded-md whitespace-nowrap">{fmtTime(s.time_start)}–{fmtTime(s.time_end)}</span>
+                        )}
+                      </div>
                     </div>
                   );
-                })() : (
-                  <div className="flex gap-0.5 h-full">
-                    {events.map(s => (
-                      <div key={s.id} className="flex-1 rounded text-xs p-1 bg-red-100 border-l-2 border-red-500 text-red-900 leading-tight">
-                        <div className="font-semibold" style={{ fontSize: '9px' }}>{s.subject_code}</div>
-                        <div style={{ fontSize: '9px' }} className="opacity-80">{s.section_name}</div>
-                        <div className="text-red-600 font-medium" style={{ fontSize: '9px' }}>⚠</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          });
-        })()}
-      </div>
+                })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modals ── */}
+      <ConflictDetailModal detail={selectedConflict} onClose={() => setSelectedConflict(null)} onEditSchedule={openEditSchedule} />
+
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           {/* Add Instructor */}
@@ -304,7 +608,7 @@ const Dashboard = () => {
           {/* Add Schedule */}
           {modal === 'schedule' && (
             <form onSubmit={saveSchedule} className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-              <h3 className="text-base font-bold text-gray-800 mb-4">Add Schedule</h3>
+              <h3 className="text-base font-bold text-gray-800 mb-4">{editingScheduleId ? 'Edit Schedule' : 'Add Schedule'}</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="text-xs text-gray-500 font-medium">Subject</label>
@@ -362,8 +666,8 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="flex gap-2 justify-end mt-5">
-                <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-60 hover:opacity-90" style={{background:'#7B1C1C'}}>{saving ? 'Saving...' : 'Save Schedule'}</button>
+                <button type="button" onClick={() => { setModal(null); setEditingScheduleId(null); setSchedForm(blankScheduleForm()); }} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-60 hover:opacity-90" style={{background:'#7B1C1C'}}>{saving ? 'Saving...' : editingScheduleId ? 'Update Schedule' : 'Save Schedule'}</button>
               </div>
             </form>
           )}

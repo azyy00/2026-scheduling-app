@@ -28,8 +28,14 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Replace the current session token (e.g. after a student updates their year/section)
+  const refreshToken = (token) => {
+    saveToken(token);
+    setUser(getUser());
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, refreshToken }}>
       {children}
     </AuthContext.Provider>
   );

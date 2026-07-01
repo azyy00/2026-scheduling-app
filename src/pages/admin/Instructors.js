@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { TableSkeleton } from '../../components/common/Skeleton';
+import { notifyBus } from '../../utils/notificationBus';
 
 const empty = { name: '', department: '', position: '', username: '', password: '' };
 
@@ -17,14 +18,14 @@ const PROGRAMS = ['BPED', 'BECED', 'BCAED'];
 
 const progBadge = (dept) => {
   const map = { BPED: 'bg-blue-100 text-blue-700', BECED: 'bg-green-100 text-green-700', BCAED: 'bg-purple-100 text-purple-700' };
-  return map[dept] || 'bg-gray-100 text-gray-600';
+  return map[dept] || 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300';
 };
 
 const statusBadge = (status) => {
   if (status === 'active')       return 'bg-emerald-100 text-emerald-700';
   if (status === 'pending')      return 'bg-amber-100 text-amber-700';
-  if (status === 'unactivated')  return 'bg-gray-100 text-gray-500';
-  return 'bg-gray-100 text-gray-500';
+  if (status === 'unactivated')  return 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400';
+  return 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400';
 };
 
 const parseCSV = (text) => {
@@ -74,13 +75,20 @@ const Instructors = () => {
 
   const remove = async (id) => {
     if (!window.confirm('Delete this instructor?')) return;
-    await api.delete(`/instructors?id=${id}`); toast.success('Deleted'); load();
+    try {
+      await api.delete(`/instructors?id=${id}`);
+      toast.success('Deleted'); load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not delete this instructor.', { duration: 5000 });
+    }
   };
 
   const handleApprove = async (id) => {
     try {
       await api.post(`/misc?action=activation-requests&id=${id}&act=approve`);
-      toast.success('Account activated!'); load();
+      toast.success('Account activated!');
+      notifyBus.push({ type: 'success', title: 'Instructor Activated', body: `Account has been activated successfully.` });
+      load();
     } catch (err) { toast.error(err.response?.data?.message || 'Error'); }
   };
 
@@ -101,6 +109,7 @@ const Instructors = () => {
         if (rows.length === 0) return toast.error('No valid rows found in CSV.');
         const { data } = await api.post('/instructors?action=import', { rows });
         toast.success(`Imported ${data.inserted} instructor(s). ${data.skipped} skipped.`);
+        notifyBus.push({ type: 'success', title: `Imported ${data.inserted} Instructor(s)`, body: `${data.skipped} skipped${data.errors?.length ? `, ${data.errors.length} error(s)` : ''}.` });
         load();
       } catch (err) { toast.error('Import failed.'); }
       finally { setImporting(false); e.target.value = ''; }
@@ -110,17 +119,17 @@ const Instructors = () => {
 
   const pendingRequests = requests.filter(r => r.status === 'pending');
 
-  const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C] transition';
+  const inputCls = 'w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C] dark:bg-gray-800 dark:text-white dark:placeholder-gray-500 transition';
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">Instructors</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Instructors</h1>
             {pendingRequests.length > 0 && (
               <button onClick={() => setShowRequests(v => !v)}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 border border-amber-200 dark:border-amber-900/40 hover:bg-amber-100 transition">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -128,12 +137,12 @@ const Instructors = () => {
               </button>
             )}
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">{instructors.length} instructor{instructors.length !== 1 ? 's' : ''} registered</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{instructors.length} instructor{instructors.length !== 1 ? 's' : ''} registered</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
           <button onClick={() => csvRef.current.click()} disabled={importing}
-            className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+            className="inline-flex items-center gap-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
@@ -141,7 +150,7 @@ const Instructors = () => {
           </button>
           <a href={'data:text/csv;charset=utf-8,' + encodeURIComponent('name,department,position\nJuan dela Cruz,BPED,Instructor I\nMaria Santos,BECED,Assistant Professor II\nJose Reyes,BCAED,Part-time Instructor\n')}
             download="instructors_template.csv"
-            className="inline-flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+            className="inline-flex items-center gap-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
@@ -159,16 +168,16 @@ const Instructors = () => {
 
       {/* Activation Requests Panel */}
       {showRequests && pendingRequests.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-5">
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 rounded-xl p-5 mb-5">
           <h3 className="text-sm font-bold text-amber-800 mb-3">Pending Activation Requests</h3>
           <div className="flex flex-col gap-2">
             {pendingRequests.map(r => (
-              <div key={r.id} className="bg-white border border-amber-100 rounded-lg px-4 py-3.5 flex items-center justify-between gap-4">
+              <div key={r.id} className="bg-white dark:bg-gray-900 border border-amber-100 dark:border-amber-900/40 rounded-lg px-4 py-3.5 flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-bold text-sm text-gray-900">{r.instructor_name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="font-bold text-sm text-gray-900 dark:text-white">{r.instructor_name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-semibold mr-2 ${progBadge(r.department)}`}>{r.department || '—'}</span>
-                    Username requested: <span className="font-mono font-semibold text-gray-700">{r.desired_username}</span>
+                    Username requested: <span className="font-mono font-semibold text-gray-700 dark:text-gray-200">{r.desired_username}</span>
                   </p>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
@@ -177,7 +186,7 @@ const Instructors = () => {
                     Approve
                   </button>
                   <button onClick={() => handleReject(r.id)}
-                    className="text-xs px-3.5 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 font-semibold transition">
+                    className="text-xs px-3.5 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 font-semibold transition">
                     Reject
                   </button>
                 </div>
@@ -189,45 +198,45 @@ const Instructors = () => {
 
       {/* Form */}
       {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
-          <h3 className="text-sm font-bold text-gray-800 mb-4">{editId ? 'Edit Instructor' : 'Add New Instructor'}</h3>
-          <form onSubmit={save} className="grid grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">{editId ? 'Edit Instructor' : 'Add New Instructor'}</h3>
+          <form onSubmit={save} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Full Name</label>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Full Name</label>
               <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                 className={inputCls} placeholder="e.g. Juan dela Cruz" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Department / Program</label>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Department / Program</label>
               <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className={inputCls}>
                 <option value="">— Select —</option>
                 {PROGRAMS.map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Position / Rank</label>
+            <div className="col-span-1 sm:col-span-2">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Position / Rank</label>
               <select value={form.position} onChange={e => setForm({ ...form, position: e.target.value })} className={inputCls}>
                 <option value="">— Select position —</option>
                 {POSITIONS.map(p => <option key={p}>{p}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Username <span className="text-gray-400 font-normal">(optional)</span>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                Username <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
               </label>
               <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
                 className={inputCls} placeholder="Leave blank — instructor can request via Sign Up" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Password {editId && <span className="text-gray-400 font-normal">(leave blank to keep current)</span>}
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                Password {editId && <span className="text-gray-400 dark:text-gray-500 font-normal">(leave blank to keep current)</span>}
               </label>
               <input type="password" required={!editId && !!form.username} value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })} className={inputCls} />
             </div>
-            <div className="col-span-2 flex gap-2 justify-end border-t border-gray-100 pt-4">
+            <div className="col-span-1 sm:col-span-2 flex gap-2 justify-end border-t border-gray-100 dark:border-gray-800 pt-4">
               <button type="button" onClick={() => { setShowForm(false); setEditId(null); }}
-                className="px-4 py-2.5 text-sm border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition">Cancel</button>
+                className="px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">Cancel</button>
               <button type="submit"
                 className="px-5 py-2.5 text-sm bg-[#7B1C1C] text-white rounded-lg font-semibold hover:bg-[#6a1717] transition">
                 {editId ? 'Update Instructor' : 'Add Instructor'}
@@ -239,37 +248,37 @@ const Instructors = () => {
 
       {/* Table */}
       {pageLoading ? <TableSkeleton rows={6} cols={6} /> : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-x-auto">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
+              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                 {['Instructor','Position','Program','Username','Status','Actions'].map((h, i) => (
-                  <th key={h} className={`px-5 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider ${i === 5 ? 'text-right' : 'text-left'}`}>{h}</th>
+                  <th key={h} className={`px-5 py-3.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 5 ? 'text-right' : 'text-left'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {instructors.map(inst => (
-                <tr key={inst.id} className="hover:bg-gray-50 transition">
+                <tr key={inst.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                   <td className="px-5 py-3.5">
                     <button onClick={() => navigate(`/admin/instructors/${inst.id}/schedule`)}
                       className="flex items-center gap-2.5 group text-left">
                       <span className="w-8 h-8 rounded-full bg-[#7B1C1C] flex items-center justify-center text-white text-xs font-bold shrink-0">
                         {inst.name?.charAt(0).toUpperCase()}
                       </span>
-                      <span className="font-semibold text-gray-900 group-hover:text-[#7B1C1C] transition">
+                      <span className="font-semibold text-gray-900 dark:text-white group-hover:text-[#7B1C1C] transition">
                         {inst.name}
-                        <span className="block text-xs text-gray-400 font-normal opacity-0 group-hover:opacity-100 transition">View schedule →</span>
+                        <span className="block text-xs text-gray-400 dark:text-gray-500 font-normal opacity-0 group-hover:opacity-100 transition">View schedule →</span>
                       </span>
                     </button>
                   </td>
-                  <td className="px-5 py-3.5 text-xs text-gray-600">{inst.position || <span className="text-gray-300">—</span>}</td>
+                  <td className="px-5 py-3.5 text-xs text-gray-600 dark:text-gray-300">{inst.position || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
                   <td className="px-5 py-3.5">
                     <span className={`text-xs px-2.5 py-1 rounded-md font-semibold ${progBadge(inst.department)}`}>
                       {inst.department || '—'}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-gray-500">{inst.username || '—'}</td>
+                  <td className="px-5 py-3.5 font-mono text-xs text-gray-500 dark:text-gray-400">{inst.username || '—'}</td>
                   <td className="px-5 py-3.5">
                     <span className={`text-xs px-2.5 py-1 rounded-md font-semibold ${statusBadge(inst.status)}`}>
                       {inst.status === 'unactivated' ? 'Not activated' : inst.status === 'pending' ? 'Pending' : 'Active'}
@@ -282,23 +291,23 @@ const Instructors = () => {
                         Schedule
                       </button>
                       <button onClick={() => { setForm({ name: inst.name, department: inst.department || '', position: inst.position || '', username: inst.username || '', password: '' }); setEditId(inst.id); setShowForm(true); }}
-                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition">Edit</button>
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition">Edit</button>
                       <button onClick={() => remove(inst.id)}
-                        className="text-xs font-semibold text-red-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">Delete</button>
+                        className="text-xs font-semibold text-red-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition">Delete</button>
                     </div>
                   </td>
                 </tr>
               ))}
               {instructors.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400 text-sm">No instructors yet — add one or import a CSV.</td></tr>
+                <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">No instructors yet — add one or import a CSV.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-3">
-        CSV columns: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">name, department, position</span>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+        CSV columns: <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">name, department, position</span>
       </p>
     </div>
   );
