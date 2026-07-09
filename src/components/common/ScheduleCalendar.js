@@ -4,19 +4,23 @@ import { Tag, User, DoorClosed, CalendarDays, Clock, AlertTriangle, X, Pencil, T
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
-const TIMES = [
-  '7:30','8:00','8:30','9:00','9:30','10:00','10:30','11:00','11:30',
-  '12:00','12:30','1:00','1:30','2:00','2:30','3:00','3:30','4:00',
-  '4:30','5:00','5:30','6:00','6:30','7:00',
-];
-const TIME_VALUES = [
-  '07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30',
-  '12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00',
-  '16:30','17:00','17:30','18:00','18:30','19:00',
-];
+// 15-minute time slots from 7:00 AM to 7:00 PM (so :15 and :45 start/end times line up).
+const SLOT_MINUTES = 15;
+const buildSlots = () => {
+  const values = [];
+  const labels = [];
+  for (let m = 7 * 60; m <= 19 * 60; m += SLOT_MINUTES) {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    values.push(`${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
+    labels.push(`${h % 12 || 12}:${String(mm).padStart(2, '0')}`);
+  }
+  return { values, labels };
+};
+const { values: TIME_VALUES, labels: TIMES } = buildSlots();
 
 const DEFAULT_DAY_WIDTH = 300;
-const DEFAULT_ROW_HEIGHT = 42;
+const DEFAULT_ROW_HEIGHT = 30;
 const MIN_DAY_WIDTH = 120;
 const MAX_DAY_WIDTH = 520;
 const MIN_ROW_HEIGHT = 26;
@@ -416,7 +420,7 @@ const ScheduleCalendar = ({ schedules = [], loading = false, onCreateSchedule, o
     const endIdx = Math.max(active.startIdx, active.endIdx);
     const timeStart = TIME_VALUES[startIdx];
     const timeEnd = active.moved
-      ? addMinutes(TIME_VALUES[endIdx], 30)
+      ? addMinutes(TIME_VALUES[endIdx], SLOT_MINUTES)
       : addMinutes(timeStart, 60);
 
     onCreateSchedule({

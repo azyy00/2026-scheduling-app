@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import ScheduleCalendar from '../../components/common/ScheduleCalendar';
 import AnalyticsPanel from '../../components/common/AnalyticsPanel';
+import SearchableSelect from '../../components/common/SearchableSelect';
 import { Eye, Pencil } from 'lucide-react';
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
@@ -612,10 +613,16 @@ const Dashboard = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="text-xs text-gray-500 font-medium">Subject</label>
-                  <select required value={schedForm.subject_id} onChange={e => setSchedForm({ ...schedForm, subject_id: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm mt-1">
-                    <option value="">Select subject</option>
-                    {options.subjects.map(s => <option key={s.id} value={s.id}>{s.code} – {s.name}</option>)}
-                  </select>
+                  <div className="mt-1">
+                    <SearchableSelect
+                      required
+                      value={schedForm.subject_id}
+                      onChange={val => setSchedForm({ ...schedForm, subject_id: val })}
+                      options={options.subjects.map(s => ({ value: s.id, label: `${s.code} – ${s.name}` }))}
+                      placeholder="Select subject"
+                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-white"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 font-medium">Instructor</label>

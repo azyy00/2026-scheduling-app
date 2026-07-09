@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
+import { programBadge as progBadge } from '../../utils/programTheme';
 
 const PROGRAMS = ['BPED', 'BECED', 'BCAED'];
 const YEAR_LEVELS = [1, 2, 3, 4];
 const SECTION_LETTERS = ['A', 'B', 'C'];
 const yearLabel = (y) => ['1st', '2nd', '3rd', '4th'][y - 1] + ' Year';
 const empty = { name: '', year_level: '1', program: 'BPED' };
-
-const progBadge = (prog) => {
-  if (prog === 'BPED')  return 'bg-blue-100 text-blue-700';
-  if (prog === 'BECED') return 'bg-green-100 text-green-700';
-  if (prog === 'BCAED') return 'bg-purple-100 text-purple-700';
-  return 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300';
-};
 
 const Sections = () => {
   const [sections, setSections] = useState([]);

@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { notifyBus } from '../../utils/notificationBus';
 import EventsSection from '../../components/common/EventsSection';
+import SearchableSelect from '../../components/common/SearchableSelect';
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const empty = {
@@ -281,10 +282,14 @@ const Schedules = () => {
           <form onSubmit={save} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {[
               { label: 'Subject', key: 'subject_id', el: (
-                <select required value={form.subject_id} onChange={e => setForm({ ...form, subject_id: e.target.value })} className={inputCls}>
-                  <option value="">Select subject</option>
-                  {options.subjects.map(s => <option key={s.id} value={s.id}>{s.code} – {s.name}</option>)}
-                </select>
+                <SearchableSelect
+                  required
+                  value={form.subject_id}
+                  onChange={val => setForm({ ...form, subject_id: val })}
+                  options={options.subjects.map(s => ({ value: s.id, label: `${s.code} – ${s.name}` }))}
+                  placeholder="Select subject"
+                  className={inputCls}
+                />
               )},
               { label: 'Instructor', key: 'instructor_id', el: (
                 <select required value={form.instructor_id} onChange={e => setForm({ ...form, instructor_id: e.target.value })} className={inputCls}>

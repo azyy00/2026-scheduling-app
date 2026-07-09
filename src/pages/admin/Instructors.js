@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { TableSkeleton } from '../../components/common/Skeleton';
 import { notifyBus } from '../../utils/notificationBus';
+import { programBadge } from '../../utils/programTheme';
 
 const empty = { name: '', department: '', position: '', username: '', password: '' };
 
@@ -16,10 +17,7 @@ const POSITIONS = [
 ];
 const PROGRAMS = ['BPED', 'BECED', 'BCAED'];
 
-const progBadge = (dept) => {
-  const map = { BPED: 'bg-blue-100 text-blue-700', BECED: 'bg-green-100 text-green-700', BCAED: 'bg-purple-100 text-purple-700' };
-  return map[dept] || 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300';
-};
+const progBadge = programBadge;
 
 const statusBadge = (status) => {
   if (status === 'active')       return 'bg-emerald-100 text-emerald-700';

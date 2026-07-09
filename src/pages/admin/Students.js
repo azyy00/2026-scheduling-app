@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { TableSkeleton } from '../../components/common/Skeleton';
 import { notifyBus } from '../../utils/notificationBus';
+import { programBadge as progBadge } from '../../utils/programTheme';
 
 const yearLabels = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year' };
 const empty = { student_id: '', name: '', year_level: '1', section_id: '' };
@@ -204,7 +205,7 @@ const Students = () => {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span>ID: <span className="font-mono font-semibold text-gray-700 dark:text-gray-200">{r.student_id}</span></span>
                     {r.year_level && <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold">{yearLabels[r.year_level]}</span>}
-                    {r.section_name && <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 font-semibold">{r.section_name}</span>}
+                    {r.section_name && <span className={`px-2 py-0.5 rounded-md font-semibold ${progBadge(r.section_name)}`}>{r.section_name}</span>}
                   </p>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
@@ -334,7 +335,7 @@ const Students = () => {
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className="text-xs px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 font-semibold">{s.section_name || '—'}</span>
+                    <span className={`text-xs px-2.5 py-1 rounded-md font-semibold ${progBadge(s.section_name)}`}>{s.section_name || '—'}</span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-2">

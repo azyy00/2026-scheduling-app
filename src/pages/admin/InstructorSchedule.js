@@ -5,15 +5,12 @@ import toast from 'react-hot-toast';
 import ScheduleCalendar from '../../components/common/ScheduleCalendar';
 import { InstructorCardSkeleton, CalendarSkeleton } from '../../components/common/Skeleton';
 import { Plus, X, Trash2 } from 'lucide-react';
+import SearchableSelect from '../../components/common/SearchableSelect';
+import { programBadge as progBadge } from '../../utils/programTheme';
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const defaultSchoolYear = () => `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
 const timeInputValue = (t) => (t ? String(t).slice(0, 5) : '');
-
-const progBadge = (dept) => {
-  const map = { BPED: 'bg-blue-100 text-blue-700', BECED: 'bg-green-100 text-green-700', BCAED: 'bg-purple-100 text-purple-700' };
-  return map[dept] || 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300';
-};
 
 const InstructorSchedule = () => {
   const { id } = useParams();
@@ -216,10 +213,14 @@ const InstructorSchedule = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Subject</label>
-                <select required value={form.subject_id} onChange={e => setForm({ ...form, subject_id: e.target.value })} className={fieldCls}>
-                  <option value="">Select subject</option>
-                  {options.subjects.map(s => <option key={s.id} value={s.id}>{s.code} – {s.name}</option>)}
-                </select>
+                <SearchableSelect
+                  required
+                  value={form.subject_id}
+                  onChange={val => setForm({ ...form, subject_id: val })}
+                  options={options.subjects.map(s => ({ value: s.id, label: `${s.code} – ${s.name}` }))}
+                  placeholder="Select subject"
+                  className={fieldCls}
+                />
               </div>
               <div>
                 <label className="text-xs text-gray-500 dark:text-gray-400 font-medium">Instructor</label>
