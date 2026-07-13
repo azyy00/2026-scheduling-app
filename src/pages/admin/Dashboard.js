@@ -158,53 +158,68 @@ const CheckIcon = () => (
   </svg>
 );
 
-// One segment of the unified status console.
-const StatSegment = ({ label, value, iconKey, sublabel, tone = 'info', actionLabel, onAction }) => {
+// Per-card accent colors (icon + badge) for the stat cards.
+const STAT_ACCENTS = {
+  schedules:   { icon: 'text-[#7B1C1C] dark:text-red-300',        badge: 'bg-[#7B1C1C]/10 text-[#7B1C1C] dark:bg-[#7B1C1C]/25 dark:text-red-300' },
+  classrooms:  { icon: 'text-blue-600 dark:text-blue-400',        badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400' },
+  instructors: { icon: 'text-emerald-600 dark:text-emerald-400',  badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' },
+};
+
+// Active-term label used as the card footer (the equivalent of the reference's date range).
+const fmtTerm = (term) =>
+  (term ? `${term.active_school_year || ''}${term.active_semester ? ` · ${term.active_semester} Sem` : ''}`.trim() : '') || '—';
+
+// A single dashboard stat card: colored icon + status badge, big value, term footer.
+const StatCard = ({ label, value, iconKey, badgeText, footer, tone = 'info', actionLabel, onAction }) => {
   const isConflict = tone === 'conflict';
   const alert = isConflict && value > 0;
+  const accent = STAT_ACCENTS[iconKey] || STAT_ACCENTS.schedules;
 
-  const chip = !isConflict
-    ? 'bg-[#7B1C1C]/10 text-[#7B1C1C] dark:bg-[#7B1C1C]/30 dark:text-red-300'
-    : alert
-      ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
-      : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400';
-
+  const iconColor = isConflict
+    ? (alert ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400')
+    : accent.icon;
+  const badgeCls = isConflict
+    ? (alert ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400')
+    : accent.badge;
   const numCls = alert ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white';
 
   return (
-    <div className={`relative p-5 transition-colors ${alert ? 'bg-red-50/70 dark:bg-red-900/15' : 'hover:bg-gray-50/70 dark:hover:bg-gray-800/40'}`}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">{label}</p>
-        <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${chip}`}>
-          {isConflict && !alert ? <CheckIcon /> : STAT_ICONS[iconKey]}
+    <div className={`flex flex-col h-full rounded-xl border bg-white dark:bg-gray-900 shadow-sm p-5 transition-shadow hover:shadow-md ${alert ? 'border-red-200 dark:border-red-900/50' : 'border-gray-200 dark:border-gray-800'}`}>
+      {/* Icon + badge */}
+      <div className="flex items-center justify-between mb-6">
+        <span className={iconColor}>{STAT_ICONS[iconKey]}</span>
+        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold ${badgeCls}`}>
+          {isConflict ? (
+            alert
+              ? <><span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Needs review</>
+              : <><CheckIcon /> All clear</>
+          ) : (
+            <><span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" /> {badgeText}</>
+          )}
         </span>
       </div>
-      <p className={`text-[2rem] leading-none font-black tabular-nums mt-3 ${numCls}`}>{value ?? '—'}</p>
-      {isConflict ? (
-        alert ? (
-          <>
-            <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-red-600 dark:text-red-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Needs review
-            </span>
-            {actionLabel && (
-              <button
-                type="button"
-                onClick={onAction}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[11px] font-black text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/30"
-              >
-                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                {actionLabel}
-              </button>
-            )}
-          </>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-            <CheckIcon /> All clear
-          </span>
-        )
-      ) : (
-        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">{sublabel}</p>
-      )}
+
+      {/* Value + footer */}
+      <div className="flex-1 flex flex-col justify-between">
+        <div>
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+          <div className={`text-3xl font-bold tabular-nums mb-5 ${numCls}`}>{value ?? '—'}</div>
+        </div>
+        <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+          {isConflict && alert && actionLabel ? (
+            <button
+              type="button"
+              onClick={onAction}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-red-700 dark:text-red-300 hover:underline focus:outline-none"
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              {actionLabel}
+            </button>
+          ) : (
+            <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">{footer}</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
@@ -393,14 +408,12 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Status console */}
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-md shadow-gray-200/50 dark:shadow-black/30 overflow-hidden mb-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100 dark:divide-gray-800">
-          <StatSegment label="Schedules"   value={stats?.schedules}   iconKey="schedules"   sublabel="total entries" />
-          <StatSegment label="Classrooms"  value={stats?.classrooms}  iconKey="classrooms"  sublabel="available" />
-          <StatSegment label="Instructors" value={stats?.instructors} iconKey="instructors" sublabel="registered" />
-          <StatSegment label="Conflicts"   value={stats?.conflicts}   iconKey="conflicts"   tone="conflict" actionLabel="View conflict sched" onAction={openConflictSchedule} />
-        </div>
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Schedules"   value={stats?.schedules}   iconKey="schedules"   badgeText="This term"  footer={fmtTerm(term)} />
+        <StatCard label="Classrooms"  value={stats?.classrooms}  iconKey="classrooms"  badgeText="Available"  footer={fmtTerm(term)} />
+        <StatCard label="Instructors" value={stats?.instructors} iconKey="instructors" badgeText="Registered" footer={fmtTerm(term)} />
+        <StatCard label="Conflicts"   value={stats?.conflicts}   iconKey="conflicts"   tone="conflict" actionLabel="View conflict sched" onAction={openConflictSchedule} footer={fmtTerm(term)} />
       </div>
 
       {/* Analytics */}
