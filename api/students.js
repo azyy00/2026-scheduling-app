@@ -111,27 +111,45 @@ module.exports = async (req, res) => {
       const norm = (v) => String(v || '').trim().toLowerCase().replace(/[\s._-]+/g, '');
       const byName = new Map();
       sections.forEach(s => byName.set(norm(s.name), s.id));
+      const sectionsAvailable = sections.map(s => s.name);
 
-      // Resolve a CSV row to a section id. Tries, in order:
-      //   1) exact (normalized) full section name, e.g. "BPED-2A"
-      //   2) program + year + letter, when a `program` column is supplied
-      //   3) year + letter, only when it is unique across programs
-      // Anything unresolved returns a reason instead of silently blanking.
+      // Resolve a CSV row to a section id, being generous about naming so a CSV
+      // that says section "1A"/"A" with program "BPED" still finds "BPED-1A",
+      // whether or not the section's own program/year columns were filled in.
       const resolveSection = (row) => {
-        const raw = row.section_name || row.section || '';
-        if (!String(raw).trim()) return { id: null };
-        const token = norm(raw);
-        if (byName.has(token)) return { id: byName.get(token) };
-
+        const raw = String(row.section_name || row.section || '').trim();
+        if (!raw) return { id: null };
+        const token = norm(raw);                          // "1a"
+        const prog = norm(row.program);                   // "bped"
         const yr = parseInt(row.year_level) || null;
-        const prog = norm(row.program);
-        if (prog) {
-          const hit = sections.find(s => norm(s.program) === prog && (!yr || s.year_level === yr) && norm(s.name).endsWith(token));
-          if (hit) return { id: hit.id };
+        const letter = token.replace(/[^a-z]/g, '');      // "a"
+        const yrStr = yr ? String(yr) : (token.match(/\d+/) || [''])[0];
+
+        // 1) exact (normalized) full name — "BPED-1A" or literally "1A"
+        if (byName.has(token)) return { id: byName.get(token) };
+        // 2) composed exact names, e.g. program+token or program+year+letter
+        for (const b of [prog + token, prog + yrStr + letter, prog + letter, prog + letter + yrStr]) {
+          if (b && byName.has(b)) return { id: byName.get(b) };
         }
-        const candidates = sections.filter(s => (!yr || s.year_level === yr) && norm(s.name).endsWith(token));
-        if (candidates.length === 1) return { id: candidates[0].id };
-        if (candidates.length > 1) return { id: null, reason: `section "${raw}" is ambiguous (matches ${candidates.map(c => c.name).join(', ')}) — add a program column` };
+        // 3) fuzzy suffix search, then narrow by program / year when that helps
+        let cands = sections.filter(s => {
+          const n = norm(s.name);
+          if (n === token || n.endsWith(token)) return true;
+          if (letter && yrStr && (n.endsWith(yrStr + letter) || n.endsWith(letter + yrStr))) return true;
+          if (letter && n.endsWith(letter)) return true;
+          return false;
+        });
+        if (prog) {
+          const p = cands.filter(s => norm(s.name).startsWith(prog) || norm(s.program) === prog);
+          if (p.length) cands = p;
+        }
+        if (yr) {
+          const y = cands.filter(s => s.year_level === yr || norm(s.name).includes(String(yr)));
+          if (y.length) cands = y;
+        }
+        const uniq = [...new Map(cands.map(s => [s.id, s])).values()];
+        if (uniq.length === 1) return { id: uniq[0].id };
+        if (uniq.length > 1) return { id: null, reason: `"${raw}" matches multiple sections (${uniq.map(c => c.name).join(', ')})` };
         return { id: null, reason: `section "${raw}" not found` };
       };
 
@@ -168,7 +186,7 @@ module.exports = async (req, res) => {
         } catch (err) { errors.push(`${student_id}: ${err.message}`); skipped++; }
       }
       await logActivity(pool, { category: 'student', action: 'imported', type: 'info', title: 'Students imported', detail: `${inserted} added, ${updated} updated, ${skipped} skipped${noSection ? `, ${noSection} without a section` : ''}`, actor_name: authUser.name, actor_role: authUser.role });
-      return res.json({ inserted, updated, skipped, noSection, errors, sectionWarnings });
+      return res.json({ inserted, updated, skipped, noSection, errors, sectionWarnings, sectionsAvailable });
     }
 
     if (req.method === 'GET') {

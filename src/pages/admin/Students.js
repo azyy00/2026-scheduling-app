@@ -245,6 +245,7 @@ const Students = () => {
 
     let inserted = 0, updated = 0, skipped = 0, noSection = 0;
     const errors = [];
+    let sectionsAvailable = [];
     try {
       for (let i = 0; i < total; i += IMPORT_BATCH_SIZE) {
         const batch = rows.slice(i, i + IMPORT_BATCH_SIZE);
@@ -255,13 +256,14 @@ const Students = () => {
         noSection += data.noSection || 0;
         if (data.errors?.length) errors.push(...data.errors);
         if (data.sectionWarnings?.length) errors.push(...data.sectionWarnings);
+        if (data.sectionsAvailable) sectionsAvailable = data.sectionsAvailable;
 
         const processed = Math.min(i + IMPORT_BATCH_SIZE, total);
         const elapsedMs = Date.now() - startedAt;
         const etaMs = processed > 0 ? Math.round((elapsedMs / processed) * (total - processed)) : null;
-        setImportProgress({ total, processed, inserted, updated, skipped, noSection, errors, elapsedMs, etaMs, done: false, failed: false });
+        setImportProgress({ total, processed, inserted, updated, skipped, noSection, errors, sectionsAvailable, elapsedMs, etaMs, done: false, failed: false });
       }
-      setImportProgress({ total, processed: total, inserted, updated, skipped, noSection, errors, elapsedMs: Date.now() - startedAt, etaMs: 0, done: true, failed: false });
+      setImportProgress({ total, processed: total, inserted, updated, skipped, noSection, errors, sectionsAvailable, elapsedMs: Date.now() - startedAt, etaMs: 0, done: true, failed: false });
       notifyBus.push({ type: 'success', title: `Imported ${inserted + updated} Student(s)`, body: `${inserted} added, ${updated} updated${noSection ? `, ${noSection} without a section` : ''}.` });
       load();
     } catch (err) {
@@ -648,7 +650,11 @@ const Students = () => {
                   {ip.noSection} student{ip.noSection !== 1 ? 's' : ''} imported without a section.
                 </p>
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 leading-relaxed">
-                  Their <span className="font-mono">section_name</span> didn't match any section. Use the full name (e.g. <span className="font-mono">BPED-2A</span>) or add a <span className="font-mono">program</span> column, then re-import — existing rows are skipped, sections fill in.
+                  Their <span className="font-mono">section_name</span> didn't match any section. Make your CSV value match one of your section names below (or add a <span className="font-mono">program</span> column), then re-import — sections fill in.
+                </p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-2 font-semibold">Your sections{ip.sectionsAvailable?.length ? ` (${ip.sectionsAvailable.length})` : ''}:</p>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-mono break-words">
+                  {ip.sectionsAvailable?.length ? ip.sectionsAvailable.join(' · ') : 'None yet — create sections in the Sections page first.'}
                 </p>
               </div>
             )}
