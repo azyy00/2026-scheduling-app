@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import ScheduleCalendar from '../../components/common/ScheduleCalendar';
-import AnalyticsPanel from '../../components/common/AnalyticsPanel';
 import SearchableSelect from '../../components/common/SearchableSelect';
 import { Eye, Pencil } from 'lucide-react';
 
@@ -415,9 +414,6 @@ const Dashboard = () => {
         <StatCard label="Instructors" value={stats?.instructors} iconKey="instructors" badgeText="Registered" footer={fmtTerm(term)} />
         <StatCard label="Conflicts"   value={stats?.conflicts}   iconKey="conflicts"   tone="conflict" actionLabel="View conflict sched" onAction={openConflictSchedule} footer={fmtTerm(term)} />
       </div>
-
-      {/* Analytics */}
-      <AnalyticsPanel />
 
       {/* Filters + Legend */}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
