@@ -6,7 +6,23 @@ import { notifyBus } from '../../utils/notificationBus';
 import { programBadge as progBadge } from '../../utils/programTheme';
 
 const yearLabels = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year' };
-const empty = { student_id: '', name: '', year_level: '1', section_id: '' };
+const empty = { student_id: '', name: '', year_level: '1', section_id: '', status: 'Regular' };
+
+const STATUS_OPTIONS = ['Regular', 'Irregular', 'Returnee'];
+// Normalize whatever is stored/typed into one of the known statuses.
+const normStatus = (v) => {
+  const s = String(v || '').trim().toLowerCase();
+  if (s === 'irr' || s === 'ir' || s.startsWith('irreg')) return 'Irregular';
+  if (s.startsWith('return')) return 'Returnee';
+  return 'Regular';
+};
+const statusBadge = (status) => {
+  switch (normStatus(status)) {
+    case 'Irregular': return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300';
+    case 'Returnee':  return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300';
+    default:          return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300';
+  }
+};
 
 // Rows sent per request while importing — keeps progress updates frequent and
 // each request small enough to stay well within serverless limits.
@@ -67,7 +83,7 @@ const parseCSVLine = (line) => {
 };
 
 const parseCSV = (text) => {
-  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim() !== '');
+  const lines = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim() !== '');
   if (lines.length < 2) return [];
   const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
   return lines.slice(1).map(line => {
@@ -92,6 +108,7 @@ const Students = () => {
   const [importProgress, setImportProgress] = useState(null);
   const [filterYear, setFilterYear] = useState('');
   const [filterSection, setFilterSection] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState([]);
   const [promoting, setPromoting] = useState(false);
@@ -258,6 +275,7 @@ const Students = () => {
   const filtered = students.filter(s => {
     if (filterYear && String(s.year_level) !== filterYear) return false;
     if (filterSection && String(s.section_id) !== filterSection) return false;
+    if (filterStatus && normStatus(s.status) !== filterStatus) return false;
     if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.student_id.includes(search)) return false;
     return true;
   });
@@ -306,11 +324,11 @@ const Students = () => {
             {importing ? 'Importing...' : 'Import CSV'}
           </button>
           <a href={'data:text/csv;charset=utf-8,' + encodeURIComponent(
-              'student_id,name,year_level,section_name,program\n' +
-              '2024-00001,"dela Cruz, Juan, P.",1,BPED-1A,BPED\n' +
-              '2024-00002,"Santos, Maria, L.",2,BECED-2B,BECED\n' +
-              '2024-00003,"Reyes, Jose",3,BCAED-3C,BCAED\n' +
-              '2024-00004,"Garcia, Ana",4,BPED-4A,BPED\n'
+              'student_id,name,year_level,section_name,program,status\n' +
+              '2024-00001,"dela Cruz, Juan, P.",1,BPED-1A,BPED,Regular\n' +
+              '2024-00002,"Santos, Maria, L.",2,BECED-2B,BECED,Irregular\n' +
+              '2024-00003,"Reyes, Jose",3,BCAED-3C,BCAED,Returnee\n' +
+              '2024-00004,"Garcia, Ana",4,BPED-4A,BPED,Regular\n'
             )} download="students_template.csv"
             className="inline-flex items-center gap-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -384,8 +402,13 @@ const Students = () => {
           <option value="">All Sections</option>
           {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
-        {(filterYear || filterSection || search) && (
-          <button onClick={() => { setFilterYear(''); setFilterSection(''); setSearch(''); }}
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+          className="border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C] dark:bg-gray-800 dark:text-white dark:placeholder-gray-500">
+          <option value="">All Statuses</option>
+          {STATUS_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+        </select>
+        {(filterYear || filterSection || filterStatus || search) && (
+          <button onClick={() => { setFilterYear(''); setFilterSection(''); setFilterStatus(''); setSearch(''); }}
             className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 dark:text-gray-600 underline">Clear</button>
         )}
       </div>
@@ -415,6 +438,12 @@ const Students = () => {
               <select required value={form.section_id} onChange={e => setForm({ ...form, section_id: e.target.value })} className={inputCls}>
                 <option value="">Select section</option>
                 {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Status</label>
+              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className={inputCls}>
+                {STATUS_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
               </select>
             </div>
             <div className="col-span-1 sm:col-span-2 flex gap-2 justify-end border-t border-gray-100 dark:border-gray-800 pt-4">
@@ -466,8 +495,8 @@ const Students = () => {
                     onChange={e => setSelected(e.target.checked ? filtered.map(s => s.id) : [])}
                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-[#7B1C1C] focus:ring-[#7B1C1C]/30 cursor-pointer" />
                 </th>
-                {['Student ID','Name','Year Level','Section','Actions'].map((h, i) => (
-                  <th key={h} className={`px-5 py-3.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 4 ? 'text-right' : 'text-left'}`}>{h}</th>
+                {['Student ID','Name','Year Level','Section','Status','Actions'].map((h) => (
+                  <th key={h} className={`px-5 py-3.5 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${h === 'Actions' ? 'text-right' : 'text-left'}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -488,11 +517,14 @@ const Students = () => {
                   <td className="px-5 py-3.5">
                     <span className={`text-xs px-2.5 py-1 rounded-md font-semibold ${progBadge(s.section_name)}`}>{s.section_name || '—'}</span>
                   </td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-xs px-2.5 py-1 rounded-md font-semibold ${statusBadge(s.status)}`}>{normStatus(s.status)}</span>
+                  </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button onClick={() => openHistory(s)}
                         className="text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">History</button>
-                      <button onClick={() => { setForm({ student_id: s.student_id, name: s.name, year_level: String(s.year_level), section_id: String(s.section_id) }); setEditId(s.id); setShowForm(true); }}
+                      <button onClick={() => { setForm({ student_id: s.student_id, name: s.name, year_level: String(s.year_level), section_id: s.section_id ? String(s.section_id) : '', status: normStatus(s.status) }); setEditId(s.id); setShowForm(true); }}
                         className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition">Edit</button>
                       <button onClick={() => remove(s.id)}
                         className="text-xs font-semibold text-red-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition">Delete</button>
@@ -501,7 +533,7 @@ const Students = () => {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-gray-400 dark:text-gray-500 text-sm">
                   {students.length === 0 ? 'No students yet — add one or import a CSV.' : 'No students match the current filters.'}
                 </td></tr>
               )}
@@ -511,8 +543,8 @@ const Students = () => {
       )}
 
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
-        CSV columns: <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">student_id, name, year_level, section_name, program</span>
-        <span className="ml-1">— <span className="font-mono">section_name</span> must match a section (e.g. <span className="font-mono">BPED-2A</span>); add <span className="font-mono">program</span> to match by letter. Names with commas should be "quoted".</span>
+        CSV columns: <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">student_id, name, year_level, section_name, program, status</span>
+        <span className="ml-1">— <span className="font-mono">section_name</span> must match a section (e.g. <span className="font-mono">BPED-2A</span>); add <span className="font-mono">program</span> to match by letter. <span className="font-mono">status</span> = Regular / Irregular / Returnee (optional). Names with commas should be "quoted".</span>
       </p>
 
       {/* Import Progress Modal */}

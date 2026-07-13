@@ -1,6 +1,15 @@
 const { getPool, handleDbError, logActivity } = require('./_db');
 const { requireAuth, signToken } = require('./_auth');
 
+// Enrollment status — Regular / Irregular / Returnee. Accepts common aliases
+// (e.g. "IRR" → Irregular) and defaults to Regular.
+const normalizeStatus = (v) => {
+  const s = String(v || '').trim().toLowerCase();
+  if (s === 'irr' || s === 'ir' || s.startsWith('irreg')) return 'Irregular';
+  if (s.startsWith('return')) return 'Returnee';
+  return 'Regular';
+};
+
 module.exports = async (req, res) => {
   const authUser = requireAuth(req, res);
   if (!authUser) return;
@@ -8,6 +17,9 @@ module.exports = async (req, res) => {
   const id = req.query.id;
 
   try {
+    // Ensure the `status` column exists (added after initial table creation).
+    await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'Regular'`).catch(() => {});
+
     // POST /api/students?action=update-self — student updates their own year level + section
     if (req.query.action === 'update-self') {
       if (req.method !== 'POST') return res.status(405).end();
@@ -133,13 +145,17 @@ module.exports = async (req, res) => {
           // Upsert: re-importing an existing student updates their name/year and
           // fills in the section. A null (unmatched) section never wipes an
           // existing one — it keeps whatever the student already had.
+          // Only set status when the CSV actually provides one, so a file
+          // without a status column never resets everyone to Regular.
+          const statusRaw = String(row.status || '').trim() ? normalizeStatus(row.status) : null;
           const [r] = await pool.query(
-            `INSERT INTO students (student_id, name, year_level, section_id) VALUES (?,?,?,?)
+            `INSERT INTO students (student_id, name, year_level, section_id, status) VALUES (?,?,?,?, COALESCE(?, 'Regular'))
              ON DUPLICATE KEY UPDATE
                name = VALUES(name),
                year_level = VALUES(year_level),
-               section_id = IF(VALUES(section_id) IS NULL, section_id, VALUES(section_id))`,
-            [String(student_id).trim(), String(name).trim(), parseInt(year_level) || 1, sec.id]
+               section_id = IF(VALUES(section_id) IS NULL, section_id, VALUES(section_id)),
+               status = IF(? IS NULL, status, ?)`,
+            [String(student_id).trim(), String(name).trim(), parseInt(year_level) || 1, sec.id, statusRaw, statusRaw, statusRaw]
           );
           // affectedRows: 1 = inserted, 2 = updated, 0 = duplicate with no change.
           if (r.affectedRows === 1) inserted++;
@@ -160,15 +176,15 @@ module.exports = async (req, res) => {
       return res.json(rows);
     }
     if (req.method === 'POST') {
-      const { student_id, name, year_level, section_id } = req.body;
+      const { student_id, name, year_level, section_id, status } = req.body;
       if (!student_id?.trim() || !name?.trim()) return res.status(400).json({ message: 'Student ID and name are required.' });
-      const [r] = await pool.query('INSERT INTO students (student_id, name, year_level, section_id) VALUES (?,?,?,?)', [student_id.trim(), name.trim(), year_level || 1, section_id || null]);
+      const [r] = await pool.query('INSERT INTO students (student_id, name, year_level, section_id, status) VALUES (?,?,?,?,?)', [student_id.trim(), name.trim(), year_level || 1, section_id || null, normalizeStatus(status)]);
       await logActivity(pool, { category: 'student', action: 'created', type: 'success', title: 'Student added', detail: `${name.trim()} (${student_id.trim()})`, actor_name: authUser.name, actor_role: authUser.role });
       return res.status(201).json({ id: r.insertId });
     }
     if (req.method === 'PUT' && id) {
-      const { student_id, name, year_level, section_id } = req.body;
-      await pool.query('UPDATE students SET student_id=?, name=?, year_level=?, section_id=? WHERE id=?', [student_id, name, year_level, section_id, id]);
+      const { student_id, name, year_level, section_id, status } = req.body;
+      await pool.query('UPDATE students SET student_id=?, name=?, year_level=?, section_id=?, status=? WHERE id=?', [student_id, name, year_level, section_id, normalizeStatus(status), id]);
       await logActivity(pool, { category: 'student', action: 'updated', type: 'info', title: 'Student updated', detail: `${name} (${student_id})`, actor_name: authUser.name, actor_role: authUser.role });
       return res.json({ success: true });
     }
