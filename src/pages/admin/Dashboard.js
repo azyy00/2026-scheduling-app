@@ -131,22 +131,22 @@ const ConflictDetailModal = ({ detail, onClose, onEditSchedule }) => {
 
 const STAT_ICONS = {
   schedules: (
-    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   ),
   classrooms: (
-    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
     </svg>
   ),
   instructors: (
-    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
   conflicts: (
-    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+    <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
   ),
@@ -185,30 +185,19 @@ const StatCard = ({ label, value, iconKey, badgeText, footer, tone = 'info', act
 
   return (
     <div className={`flex flex-col h-full rounded-xl border bg-white dark:bg-gray-900 shadow-sm p-5 transition-shadow hover:shadow-md ${alert ? 'border-red-200 dark:border-red-900/50' : 'border-gray-200 dark:border-gray-800'}`}>
-      {/* Icon (large, tinted) beside the title + value */}
-      <div className="flex-1 flex items-center gap-4">
-        <span className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 ${badgeCls}`}>
+      {/* Text top-left · big centered icon on the right */}
+      <div className="flex-1 flex items-center justify-between gap-4">
+        <div className="min-w-0 self-start">
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+          <div className={`text-4xl font-bold tabular-nums ${numCls}`}>{value ?? '—'}</div>
+        </div>
+        <span className={`w-20 h-20 rounded-2xl flex items-center justify-center shrink-0 ${badgeCls}`}>
           <span className={iconColor}>{STAT_ICONS[iconKey]}</span>
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</div>
-            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold shrink-0 ${badgeCls}`}>
-              {isConflict ? (
-                alert
-                  ? <><span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Needs review</>
-                  : <><CheckIcon /> All clear</>
-              ) : (
-                <><span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" /> {badgeText}</>
-              )}
-            </span>
-          </div>
-          <div className={`text-3xl font-bold tabular-nums mt-1 ${numCls}`}>{value ?? '—'}</div>
-        </div>
       </div>
 
-      {/* Footer */}
-      <div className="pt-3 mt-4 border-t border-gray-100 dark:border-gray-800">
+      {/* Footer: term / action on the left, status badge on the right */}
+      <div className="pt-3 mt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
         {isConflict && alert && actionLabel ? (
           <button
             type="button"
@@ -219,8 +208,17 @@ const StatCard = ({ label, value, iconKey, badgeText, footer, tone = 'info', act
             {actionLabel}
           </button>
         ) : (
-          <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">{footer}</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500 font-medium truncate">{footer}</span>
         )}
+        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold shrink-0 ${badgeCls}`}>
+          {isConflict ? (
+            alert
+              ? <><span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Needs review</>
+              : <><CheckIcon /> All clear</>
+          ) : (
+            <><span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" /> {badgeText}</>
+          )}
+        </span>
       </div>
     </div>
   );
