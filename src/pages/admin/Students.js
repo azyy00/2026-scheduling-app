@@ -8,6 +8,44 @@ import { programBadge as progBadge } from '../../utils/programTheme';
 const yearLabels = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year' };
 const empty = { student_id: '', name: '', year_level: '1', section_id: '' };
 
+// Rows sent per request while importing — keeps progress updates frequent and
+// each request small enough to stay well within serverless limits.
+const IMPORT_BATCH_SIZE = 20;
+
+// Format a millisecond duration as m:ss (or 0:ss under a minute).
+const fmtDuration = (ms) => {
+  if (ms == null || !isFinite(ms) || ms < 0) ms = 0;
+  const total = Math.round(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+};
+
+// Smoothly tweens a displayed number toward its target so counters "count up"
+// instead of snapping between batch results.
+const useCountUp = (target, duration = 480) => {
+  const [val, setVal] = useState(target);
+  const raf = useRef(0);
+  const fromRef = useRef(target);
+  useEffect(() => {
+    const from = fromRef.current;
+    const start = performance.now();
+    cancelAnimationFrame(raf.current);
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const next = from + (target - from) * eased;
+      fromRef.current = next;
+      setVal(next);
+      if (t < 1) raf.current = requestAnimationFrame(tick);
+      else fromRef.current = target;
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [target, duration]);
+  return val;
+};
+
 const parseCSV = (text) => {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
@@ -30,6 +68,7 @@ const Students = () => {
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
   const [filterYear, setFilterYear] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [search, setSearch] = useState('');
@@ -149,20 +188,47 @@ const Students = () => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async (ev) => {
-      setImporting(true);
-      try {
-        const rows = parseCSV(ev.target.result);
-        if (rows.length === 0) return toast.error('No valid rows found. Check CSV format.');
-        const { data } = await api.post('/students?action=import', { rows });
-        toast.success(`Imported ${data.inserted} student(s). ${data.skipped} skipped.`);
-        notifyBus.push({ type: 'success', title: `Imported ${data.inserted} Student(s)`, body: `${data.skipped} skipped${data.errors?.length ? `, ${data.errors.length} error(s)` : ''}.` });
-        if (data.errors?.length) data.errors.slice(0, 3).forEach(err => toast.error(err, { duration: 4000 }));
-        load();
-      } catch { toast.error('Import failed.'); }
-      finally { setImporting(false); e.target.value = ''; }
+    reader.onload = (ev) => {
+      const rows = parseCSV(ev.target.result);
+      e.target.value = '';
+      if (rows.length === 0) { toast.error('No valid rows found. Check CSV format.'); return; }
+      runImport(rows);
     };
     reader.readAsText(file);
+  };
+
+  // Imports rows in small batches so the modal can show live percent, running
+  // counts, elapsed time and a rolling estimate of the time remaining.
+  const runImport = async (rows) => {
+    const total = rows.length;
+    const startedAt = Date.now();
+    setImporting(true);
+    setImportProgress({ total, processed: 0, inserted: 0, skipped: 0, errors: [], elapsedMs: 0, etaMs: null, done: false, failed: false });
+
+    let inserted = 0, skipped = 0;
+    const errors = [];
+    try {
+      for (let i = 0; i < total; i += IMPORT_BATCH_SIZE) {
+        const batch = rows.slice(i, i + IMPORT_BATCH_SIZE);
+        const { data } = await api.post('/students?action=import', { rows: batch });
+        inserted += data.inserted || 0;
+        skipped += data.skipped || 0;
+        if (data.errors?.length) errors.push(...data.errors);
+
+        const processed = Math.min(i + IMPORT_BATCH_SIZE, total);
+        const elapsedMs = Date.now() - startedAt;
+        const etaMs = processed > 0 ? Math.round((elapsedMs / processed) * (total - processed)) : null;
+        setImportProgress({ total, processed, inserted, skipped, errors, elapsedMs, etaMs, done: false, failed: false });
+      }
+      setImportProgress({ total, processed: total, inserted, skipped, errors, elapsedMs: Date.now() - startedAt, etaMs: 0, done: true, failed: false });
+      notifyBus.push({ type: 'success', title: `Imported ${inserted} Student(s)`, body: `${skipped} skipped${errors.length ? `, ${errors.length} error(s)` : ''}.` });
+      load();
+    } catch (err) {
+      setImportProgress(prev => ({ ...(prev || { total, processed: 0, inserted, skipped, errors }), elapsedMs: Date.now() - startedAt, etaMs: null, done: true, failed: true, message: err.response?.data?.message || 'Import failed. Some rows may not have been saved.' }));
+      load();
+    } finally {
+      setImporting(false);
+    }
   };
 
   const filtered = students.filter(s => {
@@ -173,6 +239,18 @@ const Students = () => {
   });
 
   const inputCls = 'w-full border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C] dark:bg-gray-800 dark:text-white dark:placeholder-gray-500 transition';
+
+  // Live, tweened values for the import modal (hooks run unconditionally).
+  const ip = importProgress;
+  const targetPct = ip ? (ip.total ? (ip.processed / ip.total) * 100 : 100) : 0;
+  const animPct = useCountUp(targetPct);
+  const animProcessed = useCountUp(ip ? ip.processed : 0);
+  const animInserted = useCountUp(ip ? ip.inserted : 0);
+  const animSkipped = useCountUp(ip ? ip.skipped : 0);
+  const importRunning = ip && !ip.done;
+  const importDoneOk = ip && ip.done && !ip.failed;
+  const importFailed = ip && ip.done && ip.failed;
+  const closeImport = () => { if (ip && ip.done) setImportProgress(null); };
 
   return (
     <div>
@@ -406,6 +484,121 @@ const Students = () => {
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
         CSV columns: <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">student_id, name, year_level, section_name</span>
       </p>
+
+      {/* Import Progress Modal */}
+      {ip && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={closeImport}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-800 animate-modal-pop"
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${importFailed ? 'bg-red-50 dark:bg-red-900/20 text-red-600' : importDoneOk ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600' : 'bg-[#7B1C1C]/10 text-[#7B1C1C]'}`}>
+                {importRunning && (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {importDoneOk && (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {importFailed && (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                )}
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                  {importRunning ? 'Importing Students' : importFailed ? 'Import Stopped' : 'Import Complete'}
+                </h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                  {importRunning
+                    ? `Processing ${ip.total} row${ip.total !== 1 ? 's' : ''} from your CSV…`
+                    : importFailed
+                      ? (ip.message || 'Something interrupted the import.')
+                      : `Finished ${ip.total} row${ip.total !== 1 ? 's' : ''} in ${fmtDuration(ip.elapsedMs)}.`}
+                </p>
+              </div>
+            </div>
+
+            {/* Big percent + progress bar */}
+            <div className="px-6">
+              <div className="flex items-end justify-between mb-2">
+                <span className={`text-4xl font-extrabold tabular-nums tracking-tight ${importFailed ? 'text-red-600' : importDoneOk ? 'text-emerald-600' : 'text-[#7B1C1C]'}`}>
+                  {Math.round(animPct)}<span className="text-2xl font-bold">%</span>
+                </span>
+                <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 tabular-nums pb-1">
+                  {Math.round(animProcessed)} / {ip.total}
+                </span>
+              </div>
+              <div className="relative h-2.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div
+                  className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out ${importFailed ? 'bg-red-500' : importDoneOk ? 'bg-emerald-500' : 'bg-[#7B1C1C]'}`}
+                  style={{ width: `${Math.max(importFailed ? animPct : animPct, importRunning ? 4 : 0)}%` }}>
+                  {importRunning && <span className="import-bar-shimmer" />}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="px-6 pt-5 grid grid-cols-3 gap-3">
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-emerald-600 tabular-nums">{Math.round(animInserted)}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Added</p>
+              </div>
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-3 py-2.5 text-center">
+                <p className="text-lg font-bold text-amber-500 tabular-nums">{Math.round(animSkipped)}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Skipped</p>
+              </div>
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-3 py-2.5 text-center">
+                <p className={`text-lg font-bold tabular-nums ${ip.errors.length ? 'text-red-500' : 'text-gray-300 dark:text-gray-600'}`}>{ip.errors.length}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Errors</p>
+              </div>
+            </div>
+
+            {/* Time row */}
+            <div className="px-6 pt-4 flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
+              <span className="inline-flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Elapsed {fmtDuration(ip.elapsedMs)}
+              </span>
+              {importRunning && (
+                <span className="tabular-nums">
+                  {ip.etaMs == null ? 'Estimating…' : ip.etaMs <= 0 ? 'Almost done…' : `~${fmtDuration(ip.etaMs)} remaining`}
+                </span>
+              )}
+            </div>
+
+            {/* Errors preview */}
+            {ip.done && ip.errors.length > 0 && (
+              <div className="mx-6 mt-4 rounded-xl bg-red-50 dark:bg-red-900/15 border border-red-100 dark:border-red-900/40 px-4 py-3 max-h-28 overflow-y-auto">
+                {ip.errors.slice(0, 5).map((err, i) => (
+                  <p key={i} className="text-xs text-red-600 dark:text-red-400 leading-relaxed">• {err}</p>
+                ))}
+                {ip.errors.length > 5 && <p className="text-xs text-red-400 mt-1">…and {ip.errors.length - 5} more.</p>}
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="px-6 py-5 mt-2">
+              {importRunning ? (
+                <p className="text-center text-xs text-gray-400 dark:text-gray-500">Please keep this tab open until the import finishes.</p>
+              ) : (
+                <button onClick={closeImport}
+                  className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition ${importFailed ? 'bg-red-600 hover:bg-red-700' : 'bg-[#7B1C1C] hover:bg-[#6a1717]'}`}>
+                  Done
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Enrollment History Modal */}
       {historyFor && (
