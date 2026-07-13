@@ -93,23 +93,66 @@ module.exports = async (req, res) => {
       if (req.method !== 'POST') return res.status(405).end();
       const { rows } = req.body;
       if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ message: 'No data provided.' });
-      const [sections] = await pool.query('SELECT id, name FROM sections');
-      const sectionMap = {};
-      sections.forEach(s => { sectionMap[s.name.toLowerCase()] = s.id; });
-      let inserted = 0, skipped = 0, errors = [];
+
+      const [sections] = await pool.query('SELECT id, name, year_level, program FROM sections');
+      // Normalize away case, spaces and separators so "BPED-2A" == "bped 2a" == "bped2a".
+      const norm = (v) => String(v || '').trim().toLowerCase().replace(/[\s._-]+/g, '');
+      const byName = new Map();
+      sections.forEach(s => byName.set(norm(s.name), s.id));
+
+      // Resolve a CSV row to a section id. Tries, in order:
+      //   1) exact (normalized) full section name, e.g. "BPED-2A"
+      //   2) program + year + letter, when a `program` column is supplied
+      //   3) year + letter, only when it is unique across programs
+      // Anything unresolved returns a reason instead of silently blanking.
+      const resolveSection = (row) => {
+        const raw = row.section_name || row.section || '';
+        if (!String(raw).trim()) return { id: null };
+        const token = norm(raw);
+        if (byName.has(token)) return { id: byName.get(token) };
+
+        const yr = parseInt(row.year_level) || null;
+        const prog = norm(row.program);
+        if (prog) {
+          const hit = sections.find(s => norm(s.program) === prog && (!yr || s.year_level === yr) && norm(s.name).endsWith(token));
+          if (hit) return { id: hit.id };
+        }
+        const candidates = sections.filter(s => (!yr || s.year_level === yr) && norm(s.name).endsWith(token));
+        if (candidates.length === 1) return { id: candidates[0].id };
+        if (candidates.length > 1) return { id: null, reason: `section "${raw}" is ambiguous (matches ${candidates.map(c => c.name).join(', ')}) — add a program column` };
+        return { id: null, reason: `section "${raw}" not found` };
+      };
+
+      let inserted = 0, updated = 0, skipped = 0, noSection = 0;
+      const errors = [], sectionWarnings = [];
       for (const row of rows) {
-        const { student_id, name, year_level, section_name } = row;
+        const { student_id, name, year_level } = row;
         if (!student_id || !name) { skipped++; continue; }
+        const sec = resolveSection(row);
         try {
+          // Upsert: re-importing an existing student updates their name/year and
+          // fills in the section. A null (unmatched) section never wipes an
+          // existing one — it keeps whatever the student already had.
           const [r] = await pool.query(
-            'INSERT IGNORE INTO students (student_id, name, year_level, section_id) VALUES (?,?,?,?)',
-            [String(student_id).trim(), String(name).trim(), parseInt(year_level) || 1, sectionMap[section_name?.toLowerCase()] || null]
+            `INSERT INTO students (student_id, name, year_level, section_id) VALUES (?,?,?,?)
+             ON DUPLICATE KEY UPDATE
+               name = VALUES(name),
+               year_level = VALUES(year_level),
+               section_id = IF(VALUES(section_id) IS NULL, section_id, VALUES(section_id))`,
+            [String(student_id).trim(), String(name).trim(), parseInt(year_level) || 1, sec.id]
           );
-          r.affectedRows ? inserted++ : skipped++;
+          // affectedRows: 1 = inserted, 2 = updated, 0 = duplicate with no change.
+          if (r.affectedRows === 1) inserted++;
+          else if (r.affectedRows === 2) updated++;
+          else skipped++;
+          if (r.affectedRows !== 0 && !sec.id) {
+            noSection++;
+            if (sec.reason && sectionWarnings.length < 8) sectionWarnings.push(`${String(student_id).trim()}: ${sec.reason}`);
+          }
         } catch (err) { errors.push(`${student_id}: ${err.message}`); skipped++; }
       }
-      await logActivity(pool, { category: 'student', action: 'imported', type: 'info', title: 'Students imported', detail: `${inserted} added, ${skipped} skipped`, actor_name: authUser.name, actor_role: authUser.role });
-      return res.json({ inserted, skipped, errors });
+      await logActivity(pool, { category: 'student', action: 'imported', type: 'info', title: 'Students imported', detail: `${inserted} added, ${updated} updated, ${skipped} skipped${noSection ? `, ${noSection} without a section` : ''}`, actor_name: authUser.name, actor_role: authUser.role });
+      return res.json({ inserted, updated, skipped, noSection, errors, sectionWarnings });
     }
 
     if (req.method === 'GET') {

@@ -46,13 +46,34 @@ const useCountUp = (target, duration = 480) => {
   return val;
 };
 
+// Split one CSV line, honoring quoted fields so commas inside a value
+// (e.g. "ABAD, NATHANIEL, ARNESTO") stay together. Handles "" as an escaped quote.
+const parseCSVLine = (line) => {
+  const out = [];
+  let cur = '', inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuotes = false;
+      } else cur += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out.map(v => v.trim());
+};
+
 const parseCSV = (text) => {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim() !== '');
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
   return lines.slice(1).map(line => {
-    const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const vals = parseCSVLine(line);
     const obj = {};
-    headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+    headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').trim(); });
     return obj;
   }).filter(r => r.student_id || r.name);
 };
@@ -203,28 +224,31 @@ const Students = () => {
     const total = rows.length;
     const startedAt = Date.now();
     setImporting(true);
-    setImportProgress({ total, processed: 0, inserted: 0, skipped: 0, errors: [], elapsedMs: 0, etaMs: null, done: false, failed: false });
+    setImportProgress({ total, processed: 0, inserted: 0, updated: 0, skipped: 0, noSection: 0, errors: [], elapsedMs: 0, etaMs: null, done: false, failed: false });
 
-    let inserted = 0, skipped = 0;
+    let inserted = 0, updated = 0, skipped = 0, noSection = 0;
     const errors = [];
     try {
       for (let i = 0; i < total; i += IMPORT_BATCH_SIZE) {
         const batch = rows.slice(i, i + IMPORT_BATCH_SIZE);
         const { data } = await api.post('/students?action=import', { rows: batch });
         inserted += data.inserted || 0;
+        updated += data.updated || 0;
         skipped += data.skipped || 0;
+        noSection += data.noSection || 0;
         if (data.errors?.length) errors.push(...data.errors);
+        if (data.sectionWarnings?.length) errors.push(...data.sectionWarnings);
 
         const processed = Math.min(i + IMPORT_BATCH_SIZE, total);
         const elapsedMs = Date.now() - startedAt;
         const etaMs = processed > 0 ? Math.round((elapsedMs / processed) * (total - processed)) : null;
-        setImportProgress({ total, processed, inserted, skipped, errors, elapsedMs, etaMs, done: false, failed: false });
+        setImportProgress({ total, processed, inserted, updated, skipped, noSection, errors, elapsedMs, etaMs, done: false, failed: false });
       }
-      setImportProgress({ total, processed: total, inserted, skipped, errors, elapsedMs: Date.now() - startedAt, etaMs: 0, done: true, failed: false });
-      notifyBus.push({ type: 'success', title: `Imported ${inserted} Student(s)`, body: `${skipped} skipped${errors.length ? `, ${errors.length} error(s)` : ''}.` });
+      setImportProgress({ total, processed: total, inserted, updated, skipped, noSection, errors, elapsedMs: Date.now() - startedAt, etaMs: 0, done: true, failed: false });
+      notifyBus.push({ type: 'success', title: `Imported ${inserted + updated} Student(s)`, body: `${inserted} added, ${updated} updated${noSection ? `, ${noSection} without a section` : ''}.` });
       load();
     } catch (err) {
-      setImportProgress(prev => ({ ...(prev || { total, processed: 0, inserted, skipped, errors }), elapsedMs: Date.now() - startedAt, etaMs: null, done: true, failed: true, message: err.response?.data?.message || 'Import failed. Some rows may not have been saved.' }));
+      setImportProgress(prev => ({ ...(prev || { total, processed: 0, inserted, updated, skipped, noSection, errors }), elapsedMs: Date.now() - startedAt, etaMs: null, done: true, failed: true, message: err.response?.data?.message || 'Import failed. Some rows may not have been saved.' }));
       load();
     } finally {
       setImporting(false);
@@ -246,6 +270,7 @@ const Students = () => {
   const animPct = useCountUp(targetPct);
   const animProcessed = useCountUp(ip ? ip.processed : 0);
   const animInserted = useCountUp(ip ? ip.inserted : 0);
+  const animUpdated = useCountUp(ip ? (ip.updated || 0) : 0);
   const animSkipped = useCountUp(ip ? ip.skipped : 0);
   const importRunning = ip && !ip.done;
   const importDoneOk = ip && ip.done && !ip.failed;
@@ -281,7 +306,11 @@ const Students = () => {
             {importing ? 'Importing...' : 'Import CSV'}
           </button>
           <a href={'data:text/csv;charset=utf-8,' + encodeURIComponent(
-              'student_id,name,year_level,section_name\n2024-00001,Juan dela Cruz,1,BPED-1A\n2024-00002,Maria Santos,2,BECED-2B\n2024-00003,Jose Reyes,3,BCAED-3C\n2024-00004,Ana Garcia,4,BPED-4A\n'
+              'student_id,name,year_level,section_name,program\n' +
+              '2024-00001,"dela Cruz, Juan, P.",1,BPED-1A,BPED\n' +
+              '2024-00002,"Santos, Maria, L.",2,BECED-2B,BECED\n' +
+              '2024-00003,"Reyes, Jose",3,BCAED-3C,BCAED\n' +
+              '2024-00004,"Garcia, Ana",4,BPED-4A,BPED\n'
             )} download="students_template.csv"
             className="inline-flex items-center gap-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -482,7 +511,8 @@ const Students = () => {
       )}
 
       <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
-        CSV columns: <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">student_id, name, year_level, section_name</span>
+        CSV columns: <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">student_id, name, year_level, section_name, program</span>
+        <span className="ml-1">— <span className="font-mono">section_name</span> must match a section (e.g. <span className="font-mono">BPED-2A</span>); add <span className="font-mono">program</span> to match by letter. Names with commas should be "quoted".</span>
       </p>
 
       {/* Import Progress Modal */}
@@ -545,18 +575,22 @@ const Students = () => {
             </div>
 
             {/* Stats */}
-            <div className="px-6 pt-5 grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-3 py-2.5 text-center">
+            <div className="px-6 pt-5 grid grid-cols-4 gap-2.5">
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-2 py-2.5 text-center">
                 <p className="text-lg font-bold text-emerald-600 tabular-nums">{Math.round(animInserted)}</p>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Added</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Added</p>
               </div>
-              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-3 py-2.5 text-center">
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-2 py-2.5 text-center">
+                <p className="text-lg font-bold text-blue-600 tabular-nums">{Math.round(animUpdated)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Updated</p>
+              </div>
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-2 py-2.5 text-center">
                 <p className="text-lg font-bold text-amber-500 tabular-nums">{Math.round(animSkipped)}</p>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Skipped</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Skipped</p>
               </div>
-              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-3 py-2.5 text-center">
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 px-2 py-2.5 text-center">
                 <p className={`text-lg font-bold tabular-nums ${ip.errors.length ? 'text-red-500' : 'text-gray-300 dark:text-gray-600'}`}>{ip.errors.length}</p>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Errors</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mt-0.5">Errors</p>
               </div>
             </div>
 
@@ -574,6 +608,18 @@ const Students = () => {
                 </span>
               )}
             </div>
+
+            {/* No-section warning */}
+            {ip.done && ip.noSection > 0 && (
+              <div className="mx-6 mt-4 rounded-xl bg-amber-50 dark:bg-amber-900/15 border border-amber-100 dark:border-amber-900/40 px-4 py-3">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  {ip.noSection} student{ip.noSection !== 1 ? 's' : ''} imported without a section.
+                </p>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 leading-relaxed">
+                  Their <span className="font-mono">section_name</span> didn't match any section. Use the full name (e.g. <span className="font-mono">BPED-2A</span>) or add a <span className="font-mono">program</span> column, then re-import — existing rows are skipped, sections fill in.
+                </p>
+              </div>
+            )}
 
             {/* Errors preview */}
             {ip.done && ip.errors.length > 0 && (
