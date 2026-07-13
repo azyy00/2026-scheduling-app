@@ -35,6 +35,7 @@ const Students = () => {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState([]);
   const [promoting, setPromoting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [historyFor, setHistoryFor] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -96,6 +97,33 @@ const Students = () => {
       setSelected([]); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Promotion failed.'); }
     finally { setPromoting(false); }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selected.length === 0) return;
+    if (!window.confirm(`Delete ${selected.length} selected student(s)? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const { data } = await api.post('/students?action=delete-bulk', { ids: selected });
+      toast.success(data.message);
+      notifyBus.push({ type: 'warning', title: 'Students Deleted', body: data.message });
+      setSelected([]); load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Delete failed.', { duration: 5000 }); }
+    finally { setDeleting(false); }
+  };
+
+  const handleDeleteAll = async () => {
+    if (students.length === 0) return;
+    if (!window.confirm(`Delete ALL ${students.length} student(s)? This permanently removes every student record and cannot be undone.`)) return;
+    if (!window.confirm('Are you absolutely sure? This action is irreversible.')) return;
+    setDeleting(true);
+    try {
+      const { data } = await api.post('/students?action=delete-all');
+      toast.success(data.message);
+      notifyBus.push({ type: 'warning', title: 'All Students Deleted', body: data.message });
+      setSelected([]); load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Delete failed.', { duration: 5000 }); }
+    finally { setDeleting(false); }
   };
 
   const save = async (e) => {
@@ -183,6 +211,15 @@ const Students = () => {
             </svg>
             Template
           </a>
+          {students.length > 0 && (
+            <button onClick={handleDeleteAll} disabled={deleting}
+              className="inline-flex items-center gap-2 border border-red-300 dark:border-red-900/50 text-red-600 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-60">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {deleting ? 'Deleting...' : 'Delete All'}
+            </button>
+          )}
           <button onClick={() => { setForm(empty); setEditId(null); setShowForm(true); }}
             className="inline-flex items-center gap-2 bg-[#7B1C1C] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#6a1717] transition shadow-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -292,6 +329,13 @@ const Students = () => {
           <div className="flex gap-2">
             <button onClick={() => setSelected([])}
               className="text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition">Clear</button>
+            <button onClick={handleDeleteSelected} disabled={deleting}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold bg-red-600 text-white px-4 py-1.5 rounded-lg hover:bg-red-700 transition disabled:opacity-60">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {deleting ? 'Deleting...' : 'Delete Selected'}
+            </button>
             <button onClick={handlePromote} disabled={promoting}
               className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-600 text-white px-4 py-1.5 rounded-lg hover:bg-emerald-700 transition disabled:opacity-60">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

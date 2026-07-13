@@ -69,6 +69,25 @@ module.exports = async (req, res) => {
     // Everything below manages student records — admin only.
     if (authUser.role !== 'admin') return res.status(403).json({ message: 'Forbidden. You do not have access to this resource.' });
 
+    // POST /api/students?action=delete-bulk — delete a selected set of students
+    if (req.query.action === 'delete-bulk') {
+      if (req.method !== 'POST') return res.status(405).end();
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: 'No students selected.' });
+      const placeholders = ids.map(() => '?').join(',');
+      const [r] = await pool.query(`DELETE FROM students WHERE id IN (${placeholders})`, ids);
+      await logActivity(pool, { category: 'student', action: 'deleted', type: 'warning', title: 'Students deleted', detail: `${r.affectedRows} student(s) deleted`, actor_name: authUser.name, actor_role: authUser.role });
+      return res.json({ deleted: r.affectedRows, message: `Deleted ${r.affectedRows} student(s).` });
+    }
+
+    // POST /api/students?action=delete-all — delete every student record
+    if (req.query.action === 'delete-all') {
+      if (req.method !== 'POST') return res.status(405).end();
+      const [r] = await pool.query('DELETE FROM students');
+      await logActivity(pool, { category: 'student', action: 'deleted', type: 'warning', title: 'All students deleted', detail: `${r.affectedRows} student(s) deleted`, actor_name: authUser.name, actor_role: authUser.role });
+      return res.json({ deleted: r.affectedRows, message: `Deleted all ${r.affectedRows} student(s).` });
+    }
+
     // POST /api/students?action=import
     if (req.query.action === 'import') {
       if (req.method !== 'POST') return res.status(405).end();
