@@ -1,9 +1,42 @@
 // Shared Google Gemini REST helper + token-usage logging.
 // Used by the AI schedule generator and the AI assistant chat.
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Extract a clean message + suggested retry delay (seconds) from a Gemini error body.
+// Google returns { error: { code, message, status, details: [{ '@type': '...RetryInfo', retryDelay: '36s' }] } }.
+function parseGeminiError(status, bodyText) {
+  let message = '';
+  let retryAfter = null;
+  try {
+    const parsed = JSON.parse(bodyText);
+    message = parsed?.error?.message || '';
+    const retryInfo = parsed?.error?.details?.find(d => String(d['@type'] || '').includes('RetryInfo'));
+    if (retryInfo?.retryDelay) {
+      const m = String(retryInfo.retryDelay).match(/(\d+(\.\d+)?)s/);
+      if (m) retryAfter = Math.ceil(parseFloat(m[1]));
+    }
+  } catch {
+    message = String(bodyText || '').slice(0, 200);
+  }
+
+  if (status === 429) {
+    return {
+      retryAfter,
+      friendly: `You've hit the Gemini free-tier rate limit${retryAfter ? ` — try again in about ${retryAfter}s` : ' — wait a moment and try again'}. If this keeps happening, the daily free quota may be used up; it resets at midnight Pacific time, or you can set GEMINI_MODEL=gemini-2.0-flash-lite in Vercel for a higher free quota.`,
+    };
+  }
+  if (status === 400 || status === 403) {
+    return { retryAfter, friendly: `Gemini rejected the request${message ? `: ${message}` : ''}. Check that GEMINI_API_KEY is valid and the API is enabled for it.` };
+  }
+  return { retryAfter, friendly: `Gemini API error (${status})${message ? `: ${message}` : ''}` };
+}
+
 // Call Gemini and return { text, usage }. Throws errors carrying a statusCode
-// and a user-facing message (missing key, network, bad response, rate limit).
-async function geminiRequest(prompt, { json = false, temperature = 0.4 } = {}) {
+// and a clean, user-facing message (missing key, network, bad response, rate limit).
+// Automatically retries once on a 429/503 using Google's suggested retry delay
+// (or a short default), since free-tier rate limits are often transient.
+async function geminiRequest(prompt, { json = false, temperature = 0.4, _retried = false } = {}) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
     const e = new Error('AI is not configured. Add a GEMINI_API_KEY environment variable in Vercel to enable it.');
@@ -27,12 +60,24 @@ async function geminiRequest(prompt, { json = false, temperature = 0.4 } = {}) {
     e.statusCode = 502;
     throw e;
   }
+
   if (!resp.ok) {
-    const body = await resp.text().catch(() => '');
-    const e = new Error(`Gemini API error (${resp.status}). ${resp.status === 400 || resp.status === 403 ? 'Check that your GEMINI_API_KEY is valid.' : resp.status === 429 ? 'Free-tier rate limit hit — wait a moment and try again.' : ''} ${body.slice(0, 200)}`.trim());
+    const bodyText = await resp.text().catch(() => '');
+    const { retryAfter, friendly } = parseGeminiError(resp.status, bodyText);
+
+    // One automatic retry for transient rate-limit/server errors, capped at 8s wait
+    // (Vercel functions have limited execution time, so we don't wait longer).
+    if (!_retried && (resp.status === 429 || resp.status === 503)) {
+      await sleep(Math.min((retryAfter || 3) * 1000, 8000));
+      return geminiRequest(prompt, { json, temperature, _retried: true });
+    }
+
+    const e = new Error(friendly);
     e.statusCode = resp.status === 429 ? 429 : 502;
+    if (retryAfter) e.retryAfter = retryAfter;
     throw e;
   }
+
   const data = await resp.json();
   const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
   const um = data?.usageMetadata || {};

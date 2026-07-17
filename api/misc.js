@@ -352,7 +352,7 @@ module.exports = async (req, res) => {
 
     res.status(400).json({ message: 'Unknown action.' });
   } catch (err) {
-    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message });
+    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message, retryAfter: err.retryAfter });
     return handleDbError(err, res, 'Misc');
   }
 };
