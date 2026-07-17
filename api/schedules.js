@@ -1,53 +1,8 @@
 const { getPool, getActiveTerm, handleDbError, logActivity } = require('./_db');
 const { requireAdmin } = require('./_auth');
+const { geminiRequest, parseJsonArray, logAiUsage } = require('./_gemini');
 
 const DAY_LIST = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-// Ask Gemini to lay out a weekly timetable and return the raw JSON array of entries.
-// Uses the REST API directly (no SDK dependency). Throws with a friendly message
-// when the key is missing or the response can't be parsed.
-async function callGemini(prompt) {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) {
-    const err = new Error('AI scheduling is not configured. Add a GEMINI_API_KEY environment variable in Vercel to enable it.');
-    err.statusCode = 503;
-    throw err;
-  }
-  const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-  let resp;
-  try {
-    resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, responseMimeType: 'application/json' },
-      }),
-    });
-  } catch (e) {
-    const err = new Error('Could not reach the Gemini API. Check the network/API key and try again.');
-    err.statusCode = 502;
-    throw err;
-  }
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => '');
-    const err = new Error(`Gemini API error (${resp.status}). ${resp.status === 400 || resp.status === 403 ? 'Check that your GEMINI_API_KEY is valid.' : ''} ${body.slice(0, 200)}`.trim());
-    err.statusCode = 502;
-    throw err;
-  }
-  const data = await resp.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
-  const cleaned = text.replace(/^```json\s*/i, '').replace(/```$/g, '').trim();
-  try {
-    const parsed = JSON.parse(cleaned);
-    return Array.isArray(parsed) ? parsed : (parsed.schedule || parsed.entries || parsed.items || []);
-  } catch {
-    const err = new Error('The AI returned an unexpected format. Please try generating again.');
-    err.statusCode = 502;
-    throw err;
-  }
-}
 
 // Does [aStart,aEnd) overlap [bStart,bEnd)? Times are "HH:MM" strings (lexical compare works).
 const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
@@ -258,7 +213,9 @@ module.exports = async (req, res) => {
         `EXISTING_SCHEDULES: ${JSON.stringify(existing)}`,
       ].join('\n');
 
-      const raw = await callGemini(prompt);
+      const { text, usage } = await geminiRequest(prompt, { json: true });
+      await logAiUsage(pool, 'schedule', usage);
+      const raw = parseJsonArray(text);
 
       // Validate + sanitize the AI output against real IDs and against conflicts.
       const subjByCode = new Map(subjects.map(s => [String(s.code).toLowerCase(), s]));
@@ -298,7 +255,7 @@ module.exports = async (req, res) => {
       // Report any subjects the AI failed to place.
       const placedCodes = new Set(proposal.map(p => p.subject_code.toLowerCase()));
       const missing = subjects.filter(s => !placedCodes.has(String(s.code).toLowerCase())).map(s => s.code);
-      return res.json({ proposal, missing, term: { school_year: sy, semester: sem }, section: { id: section.id, name: section.name } });
+      return res.json({ proposal, missing, term: { school_year: sy, semester: sem }, section: { id: section.id, name: section.name }, usage });
     }
 
     // POST /api/schedules?action=ai-apply — insert an accepted set of proposed entries
