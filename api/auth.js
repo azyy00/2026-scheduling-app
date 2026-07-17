@@ -131,10 +131,19 @@ module.exports = async (req, res) => {
 
     try {
       const [rows] = await pool.query(
-        `SELECT s.id, s.student_id, s.name, s.year_level, s.section_id, sec.name as section_name
+        `SELECT s.id, s.student_id, s.name, s.year_level, s.section_id, sec.name as section_name,
+                COALESCE(s.status, 'Regular') as status
          FROM students s LEFT JOIN sections sec ON sec.id = s.section_id WHERE s.student_id = ?`,
         [String(student_id).trim()]
-      );
+      ).catch(async () => {
+        // `status` column may not exist on very old databases — fall back without it.
+        const [r] = await pool.query(
+          `SELECT s.id, s.student_id, s.name, s.year_level, s.section_id, sec.name as section_name
+           FROM students s LEFT JOIN sections sec ON sec.id = s.section_id WHERE s.student_id = ?`,
+          [String(student_id).trim()]
+        );
+        return [r];
+      });
       const student = rows[0];
       if (!student) {
         const count = await loginStrike(pool, req, 'student-login');
@@ -144,7 +153,7 @@ module.exports = async (req, res) => {
           : 'Too many failed attempts. Please try again in 15 minutes.' });
       }
       await loginReset(pool, req, 'student-login');
-      const token = signToken({ id: student.id, role: 'student', student_id: student.student_id, name: student.name, year_level: student.year_level, section_id: student.section_id, section_name: student.section_name });
+      const token = signToken({ id: student.id, role: 'student', student_id: student.student_id, name: student.name, year_level: student.year_level, section_id: student.section_id, section_name: student.section_name, status: student.status || 'Regular' });
       return res.json({ token });
     } catch (err) {
       console.error('Student login error:', err.message);

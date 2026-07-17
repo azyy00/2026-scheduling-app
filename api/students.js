@@ -1,4 +1,4 @@
-const { getPool, handleDbError, logActivity } = require('./_db');
+const { getPool, getActiveTerm, handleDbError, logActivity } = require('./_db');
 const { requireAuth, signToken } = require('./_auth');
 
 // Enrollment status — Regular / Irregular / Returnee. Accepts common aliases
@@ -19,6 +19,60 @@ module.exports = async (req, res) => {
   try {
     // Ensure the `status` column exists (added after initial table creation).
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'Regular'`).catch(() => {});
+    // Custom picks table for irregular students (a student ↔ schedule mapping).
+    await pool.query(`CREATE TABLE IF NOT EXISTS student_schedules (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      student_id INT NOT NULL,
+      schedule_id INT NOT NULL,
+      UNIQUE KEY uniq_student_schedule (student_id, schedule_id)
+    )`).catch(() => {});
+
+    // GET /api/students?action=me — the signed-in student's own record (incl. status)
+    if (req.query.action === 'me') {
+      if (authUser.role !== 'student') return res.status(403).json({ message: 'Forbidden' });
+      const [[s]] = await pool.query(
+        `SELECT s.id, s.student_id, s.name, s.year_level, s.section_id, s.status, sec.name as section_name
+         FROM students s LEFT JOIN sections sec ON sec.id = s.section_id WHERE s.id = ?`,
+        [authUser.id]
+      );
+      if (!s) return res.status(404).json({ message: 'Student not found.' });
+      return res.json(s);
+    }
+
+    // POST /api/students?action=enroll-class — irregular student adds a class to their custom schedule
+    // POST /api/students?action=drop-class   — remove a class from it
+    if (req.query.action === 'enroll-class' || req.query.action === 'drop-class') {
+      if (req.method !== 'POST') return res.status(405).end();
+      if (authUser.role !== 'student') return res.status(403).json({ message: 'Forbidden' });
+      const [[me]] = await pool.query('SELECT status FROM students WHERE id=?', [authUser.id]);
+      if (!me || normalizeStatus(me.status) !== 'Irregular') {
+        return res.status(403).json({ message: 'Only irregular students can customize their schedule. Ask the admin to set your status to Irregular.' });
+      }
+      const scheduleId = parseInt(req.body?.schedule_id);
+      if (!scheduleId) return res.status(400).json({ message: 'A class is required.' });
+
+      if (req.query.action === 'drop-class') {
+        await pool.query('DELETE FROM student_schedules WHERE student_id=? AND schedule_id=?', [authUser.id, scheduleId]);
+        return res.json({ success: true });
+      }
+      // enroll: the class must exist in the active term; block time clashes with existing picks.
+      const term = await getActiveTerm(pool);
+      const [[cls]] = await pool.query(
+        'SELECT id, day_of_week, time_start, time_end FROM schedules WHERE id=? AND school_year=? AND semester=?',
+        [scheduleId, term.active_school_year, term.active_semester]
+      );
+      if (!cls) return res.status(404).json({ message: 'That class is not available in the current term.' });
+      const [clash] = await pool.query(
+        `SELECT sub.code FROM student_schedules ss
+         JOIN schedules s ON s.id = ss.schedule_id
+         JOIN subjects sub ON sub.id = s.subject_id
+         WHERE ss.student_id=? AND s.day_of_week=? AND s.time_start < ? AND s.time_end > ?`,
+        [authUser.id, cls.day_of_week, cls.time_end, cls.time_start]
+      );
+      if (clash.length) return res.status(409).json({ message: `Time clash with ${clash[0].code} on ${cls.day_of_week}. Drop it first or pick another slot.` });
+      await pool.query('INSERT IGNORE INTO student_schedules (student_id, schedule_id) VALUES (?,?)', [authUser.id, scheduleId]);
+      return res.json({ success: true });
+    }
 
     // POST /api/students?action=update-self — student updates their own year level + section
     if (req.query.action === 'update-self') {

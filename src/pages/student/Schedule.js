@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, CalendarCheck2, Sun, MapPin, User, Pencil, CalendarRange, ListOrdered } from 'lucide-react';
+import { BookOpen, CalendarCheck2, Sun, MapPin, User, Pencil, CalendarRange, ListOrdered, Plus, Check, Search, Sparkles } from 'lucide-react';
 import ScheduleCalendar from '../../components/common/ScheduleCalendar';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -44,13 +44,55 @@ const Schedule = () => {
   const [sections, setSections] = useState([]);
   const [editForm, setEditForm] = useState({ year_level: '', section_id: '' });
   const [saving, setSaving] = useState(false);
+  const [me, setMe] = useState(null);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [catalog, setCatalog] = useState({ classes: [], picked: [] });
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogFilter, setCatalogFilter] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  const isIrregular = String(me?.status || '').toLowerCase().startsWith('irr');
 
   const loadSchedules = () => {
     setLoading(true);
     api.get('/misc?action=student-schedules').then(({ data }) => setSchedules(data)).finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadSchedules(); }, []);
+  useEffect(() => {
+    loadSchedules();
+    api.get('/students?action=me').then(({ data }) => setMe(data)).catch(() => {});
+  }, []);
+
+  const openCatalog = async () => {
+    setShowCatalog(true);
+    setCatalogLoading(true);
+    try { const { data } = await api.get('/misc?action=class-catalog'); setCatalog(data); }
+    catch { setCatalog({ classes: [], picked: [] }); }
+    finally { setCatalogLoading(false); }
+  };
+
+  const toggleClass = async (cls) => {
+    const picked = catalog.picked.includes(cls.id);
+    setBusyId(cls.id);
+    try {
+      if (picked) {
+        await api.post('/students?action=drop-class', { schedule_id: cls.id });
+        setCatalog(c => ({ ...c, picked: c.picked.filter(id => id !== cls.id) }));
+      } else {
+        await api.post('/students?action=enroll-class', { schedule_id: cls.id });
+        setCatalog(c => ({ ...c, picked: [...c.picked, cls.id] }));
+      }
+      loadSchedules();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not update your schedule.', { duration: 5000 });
+    } finally { setBusyId(null); }
+  };
+
+  const filteredCatalog = catalog.classes.filter(c => {
+    if (!catalogFilter) return true;
+    const q = catalogFilter.toLowerCase();
+    return c.subject_code?.toLowerCase().includes(q) || c.subject_name?.toLowerCase().includes(q) || c.section_name?.toLowerCase().includes(q) || c.instructor_name?.toLowerCase().includes(q);
+  });
 
   const openEdit = async () => {
     setEditForm({ year_level: user?.year_level ? String(user.year_level) : '', section_id: user?.section_id ? String(user.section_id) : '' });
@@ -96,7 +138,14 @@ const Schedule = () => {
         <div className="flex items-stretch gap-3">
           <span className="w-1.5 rounded-full bg-[#7B1C1C] shrink-0" />
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">My Class Schedule</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">My Class Schedule</h1>
+              {isIrregular && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                  <Sparkles className="w-3 h-3" /> Irregular
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               {user?.name}
               {user?.section_name && <><span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>{user.section_name}</>}
@@ -104,11 +153,20 @@ const Schedule = () => {
             </p>
           </div>
         </div>
-        <button onClick={openEdit}
-          className="inline-flex items-center gap-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition self-start">
-          <Pencil className="w-4 h-4 text-gray-400" />
-          Update Year / Section
-        </button>
+        <div className="flex gap-2 self-start flex-wrap">
+          {isIrregular && (
+            <button onClick={openCatalog}
+              className="inline-flex items-center gap-2 bg-[#7B1C1C] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#6a1717] transition shadow-sm">
+              <Plus className="w-4 h-4" />
+              Customize My Schedule
+            </button>
+          )}
+          <button onClick={openEdit}
+            className="inline-flex items-center gap-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+            <Pencil className="w-4 h-4 text-gray-400" />
+            Update Year / Section
+          </button>
+        </div>
       </div>
 
       {/* Update Year / Section Modal */}
@@ -153,6 +211,69 @@ const Schedule = () => {
         </div>
       )}
 
+      {/* Customize (irregular) — class catalog modal */}
+      {showCatalog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowCatalog(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-800 flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">Customize My Schedule</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Pick classes from any section. Time clashes with your picks are blocked. {catalog.picked.length} selected.</p>
+              </div>
+              <button onClick={() => setShowCatalog(false)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="px-6 pt-4">
+              <div className="relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input value={catalogFilter} onChange={e => setCatalogFilter(e.target.value)} placeholder="Search subject, section, or instructor…"
+                  className="w-full border border-gray-300 dark:border-gray-700 rounded-lg pl-9 pr-3 py-2.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#7B1C1C]/30 focus:border-[#7B1C1C]" />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 overflow-y-auto">
+              {catalogLoading ? (
+                <div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-[#7B1C1C] border-t-transparent rounded-full animate-spin" /></div>
+              ) : filteredCatalog.length === 0 ? (
+                <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-12">{catalog.classes.length === 0 ? 'No classes available in the current term yet.' : 'No classes match your search.'}</p>
+              ) : (
+                <div className="rounded-lg border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
+                  {filteredCatalog.map(c => {
+                    const picked = catalog.picked.includes(c.id);
+                    return (
+                      <div key={c.id} className={`flex items-center gap-3 px-3 py-2.5 ${picked ? 'bg-emerald-50/60 dark:bg-emerald-900/15' : ''}`}>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-gray-900 dark:text-white">{c.subject_code}</span>
+                            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{c.section_name}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{c.subject_name}</p>
+                          <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                            <span>{c.day_of_week?.slice(0,3)} {fmt(c.time_start)}–{fmt(c.time_end)}</span>
+                            <span className="flex items-center gap-1 min-w-0"><User className="w-3 h-3 shrink-0" /><span className="truncate">{c.instructor_name}</span></span>
+                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{c.room_code}</span>
+                          </div>
+                        </div>
+                        <button onClick={() => toggleClass(c)} disabled={busyId === c.id}
+                          className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition disabled:opacity-60 ${picked ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                          {busyId === c.id ? <span className="w-3.5 h-3.5 border-2 border-current/40 border-t-current rounded-full animate-spin" /> : picked ? <><Check className="w-3.5 h-3.5" /> Added</> : <><Plus className="w-3.5 h-3.5" /> Add</>}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+              <button onClick={() => setShowCatalog(false)} className="px-5 py-2.5 text-sm bg-[#7B1C1C] text-white rounded-lg font-semibold hover:bg-[#6a1717] transition">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stat console */}
       <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden mb-6">
         <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
@@ -165,6 +286,12 @@ const Schedule = () => {
       {schedules.length === 0 ? (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-5 py-16 text-center shadow-sm">
           <p className="text-gray-400 dark:text-gray-500 text-sm">No classes scheduled yet.</p>
+          {isIrregular && (
+            <button onClick={openCatalog}
+              className="mt-4 inline-flex items-center gap-2 bg-[#7B1C1C] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#6a1717] transition">
+              <Plus className="w-4 h-4" /> Build your custom schedule
+            </button>
+          )}
         </div>
       ) : (
         <>

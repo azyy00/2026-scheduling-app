@@ -125,18 +125,40 @@ module.exports = async (req, res) => {
     }
 
     // GET /api/misc?action=student-schedules
+    // Irregular students see their own custom-picked classes; everyone else sees their section's schedule.
     if (action === 'student-schedules') {
       if (user.role !== 'student') return res.status(403).json({ message: 'Forbidden' });
       const term = await getActiveTerm(pool);
-      const [rows] = await pool.query(
-        `SELECT s.id, s.day_of_week, s.time_start, s.time_end, s.semester, s.school_year,
+      const [[me]] = await pool.query('SELECT status FROM students WHERE id=?', [user.id]).catch(() => [[]]);
+      const isIrregular = String(me?.status || '').toLowerCase().startsWith('irr');
+
+      const selectCols = `s.id, s.day_of_week, s.time_start, s.time_end, s.semester, s.school_year,
           sub.code as subject_code, sub.name as subject_name, sub.units,
-          c.room_code, i.name as instructor_name, sec.name as section_name
-        FROM schedules s
-        JOIN subjects sub ON sub.id = s.subject_id
+          c.room_code, i.name as instructor_name, sec.name as section_name`;
+      const joins = `JOIN subjects sub ON sub.id = s.subject_id
         JOIN classrooms c ON c.id = s.classroom_id
         JOIN instructors i ON i.id = s.instructor_id
-        JOIN sections sec ON sec.id = s.section_id
+        JOIN sections sec ON sec.id = s.section_id`;
+
+      if (isIrregular) {
+        const [rows] = await pool.query(
+          `SELECT ${selectCols}
+           FROM student_schedules ss
+           JOIN schedules s ON s.id = ss.schedule_id
+           ${joins}
+           WHERE ss.student_id = ?
+             AND (? IS NULL OR s.school_year = ?)
+             AND (? IS NULL OR s.semester = ?)
+           ORDER BY s.day_of_week, s.time_start`,
+          [user.id, term.active_school_year, term.active_school_year, term.active_semester, term.active_semester]
+        ).catch(() => [[]]);
+        return res.json(rows);
+      }
+
+      const [rows] = await pool.query(
+        `SELECT ${selectCols}
+        FROM schedules s
+        ${joins}
         WHERE s.section_id = ?
           AND (? IS NULL OR s.school_year = ?)
           AND (? IS NULL OR s.semester = ?)
@@ -144,6 +166,29 @@ module.exports = async (req, res) => {
         [user.section_id, term.active_school_year, term.active_school_year, term.active_semester, term.active_semester]
       );
       return res.json(rows);
+    }
+
+    // GET /api/misc?action=class-catalog — all classes in the active term (for irregular self-select)
+    if (action === 'class-catalog') {
+      if (user.role !== 'student') return res.status(403).json({ message: 'Forbidden' });
+      const term = await getActiveTerm(pool);
+      const [rows] = await pool.query(
+        `SELECT s.id, s.day_of_week, s.time_start, s.time_end,
+          sub.code as subject_code, sub.name as subject_name, sub.units,
+          c.room_code, i.name as instructor_name, sec.name as section_name, sec.year_level
+        FROM schedules s
+        JOIN subjects sub ON sub.id = s.subject_id
+        JOIN classrooms c ON c.id = s.classroom_id
+        JOIN instructors i ON i.id = s.instructor_id
+        JOIN sections sec ON sec.id = s.section_id
+        WHERE (? IS NULL OR s.school_year = ?)
+          AND (? IS NULL OR s.semester = ?)
+        ORDER BY sec.name, s.day_of_week, s.time_start`,
+        [term.active_school_year, term.active_school_year, term.active_semester, term.active_semester]
+      );
+      const [picks] = await pool.query('SELECT schedule_id FROM student_schedules WHERE student_id=?', [user.id]).catch(() => [[]]);
+      const pickedIds = picks.map(p => p.schedule_id);
+      return res.json({ classes: rows, picked: pickedIds });
     }
 
     // /api/misc?action=activation-requests  (admin only)
