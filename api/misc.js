@@ -1,6 +1,5 @@
 const { getPool, ensureRegistrationTables, getActiveTerm, handleDbError, ensureActivityTable, logActivity } = require('./_db');
 const { requireAuth } = require('./_auth');
-const { geminiRequest, logAiUsage, ensureAiUsageTable } = require('./_gemini');
 const bcrypt = require('bcryptjs');
 
 const CONFLICT_JOIN = `
@@ -35,64 +34,6 @@ module.exports = async (req, res) => {
   const pool = getPool();
 
   try {
-    // GET /api/misc?action=ai-usage  (admin) — Gemini token consumption (free-tier awareness)
-    if (action === 'ai-usage') {
-      if (user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-      await ensureAiUsageTable(pool);
-      const [[today]] = await pool.query('SELECT COALESCE(SUM(total_tokens),0) AS tokens, COUNT(*) AS requests FROM ai_usage WHERE created_at >= CURDATE()');
-      const [[all]] = await pool.query('SELECT COALESCE(SUM(total_tokens),0) AS tokens, COUNT(*) AS requests FROM ai_usage');
-      return res.json({
-        today: { tokens: Number(today.tokens) || 0, requests: Number(today.requests) || 0 },
-        allTime: { tokens: Number(all.tokens) || 0, requests: Number(all.requests) || 0 },
-      });
-    }
-
-    // POST /api/misc?action=ai-chat  (admin) — assistant that knows the system data
-    if (action === 'ai-chat') {
-      if (req.method !== 'POST') return res.status(405).end();
-      if (user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-      const message = String(req.body?.message || '').trim();
-      if (!message) return res.status(400).json({ message: 'Ask a question.' });
-      const history = Array.isArray(req.body?.history) ? req.body.history.slice(-6) : [];
-
-      const term = await getActiveTerm(pool);
-      const [[counts]] = await pool.query(`SELECT
-        (SELECT COUNT(*) FROM students) AS students,
-        (SELECT COUNT(*) FROM instructors) AS instructors,
-        (SELECT COUNT(*) FROM sections) AS sections,
-        (SELECT COUNT(*) FROM subjects) AS subjects,
-        (SELECT COUNT(*) FROM classrooms) AS classrooms,
-        (SELECT COUNT(*) FROM schedules WHERE school_year=? AND semester=?) AS schedules`,
-        [term.active_school_year, term.active_semester]);
-      const [instructors] = await pool.query('SELECT name, department FROM instructors ORDER BY name');
-      const [sections] = await pool.query('SELECT name, year_level FROM sections ORDER BY name');
-      const [students] = await pool.query(
-        `SELECT s.student_id, s.name, s.year_level, COALESCE(s.status,'Regular') AS status, sec.name AS section
-         FROM students s LEFT JOIN sections sec ON sec.id = s.section_id ORDER BY s.name LIMIT 400`).catch(() => [[]]);
-      const [subjects] = await pool.query('SELECT code, name, units FROM subjects ORDER BY code');
-      const [[conf]] = await pool.query(`SELECT COUNT(DISTINCT s1.id) AS c FROM schedules s1 ${CONFLICT_JOIN}`).catch(() => [[{ c: 0 }]]);
-
-      const context = {
-        college: 'Goa Community College — Class Scheduling System',
-        active_term: { school_year: term.active_school_year, semester: term.active_semester },
-        totals: { ...counts, conflicts: conf?.c || 0 },
-        instructors, sections, subjects,
-        students: students.map(s => ({ id: s.student_id, name: s.name, year: s.year_level, section: s.section, status: s.status })),
-      };
-      const prompt = [
-        'You are the built-in assistant for a college class-scheduling web app. Answer the admin\'s question using ONLY the SYSTEM_DATA JSON below.',
-        'Be concise and specific. Use the real names/numbers from the data. If the data does not contain the answer, say so plainly — do not invent facts.',
-        'When listing people or counts, prefer short bullet points. Do not output raw JSON unless asked.',
-        history.length ? `RECENT_CONVERSATION:\n${history.map(h => `${h.role === 'user' ? 'Admin' : 'Assistant'}: ${h.text}`).join('\n')}` : '',
-        `SYSTEM_DATA:\n${JSON.stringify(context)}`,
-        `QUESTION: ${message}`,
-      ].filter(Boolean).join('\n\n');
-
-      const { text, usage } = await geminiRequest(prompt, { json: false, temperature: 0.5 });
-      await logAiUsage(pool, 'chat', usage);
-      return res.json({ reply: text.trim() || 'Sorry, I could not generate a response.', usage });
-    }
-
     // GET /api/misc?action=dashboard-stats  (admin)
     if (action === 'dashboard-stats') {
       if (user.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
@@ -352,7 +293,6 @@ module.exports = async (req, res) => {
 
     res.status(400).json({ message: 'Unknown action.' });
   } catch (err) {
-    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message, retryAfter: err.retryAfter });
     return handleDbError(err, res, 'Misc');
   }
 };

@@ -3,7 +3,6 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import ScheduleCalendar from '../../components/common/ScheduleCalendar';
 import SearchableSelect from '../../components/common/SearchableSelect';
-import AiGenerateModal from '../../components/common/AiGenerateModal';
 import { Eye, Pencil } from 'lucide-react';
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
@@ -243,7 +242,6 @@ const Dashboard = () => {
   const [filterYear, setFilterYear] = useState('');
   const [filterSection, setFilterSection] = useState('');
   const [modal, setModal] = useState(null);
-  const [showAI, setShowAI] = useState(false);
   const [instForm, setInstForm] = useState(emptyInstructor);
   const [roomForm, setRoomForm] = useState(emptyRoom);
   const [schedForm, setSchedForm] = useState(emptySchedule);
@@ -401,11 +399,6 @@ const Dashboard = () => {
             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
             Room
           </button>
-          <button onClick={() => setShowAI(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold border border-[#7B1C1C]/30 text-[#7B1C1C] dark:text-red-300 dark:border-red-900/50 bg-white dark:bg-gray-900 hover:bg-[#7B1C1C]/5 dark:hover:bg-[#7B1C1C]/20 transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-            AI Generate
-          </button>
           <button onClick={() => openCreateSchedule()}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#6a1717]" style={{background:'#7B1C1C'}}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
@@ -413,16 +406,6 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
-
-      <AiGenerateModal
-        open={showAI}
-        onClose={() => setShowAI(false)}
-        sections={options.sections}
-        subjects={options.subjects}
-        schoolYear={term?.active_school_year}
-        semester={term?.active_semester}
-        onApplied={load}
-      />
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

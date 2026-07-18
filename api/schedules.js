@@ -1,11 +1,5 @@
 const { getPool, getActiveTerm, handleDbError, logActivity } = require('./_db');
 const { requireAdmin } = require('./_auth');
-const { geminiRequest, parseJsonArray, logAiUsage } = require('./_gemini');
-
-const DAY_LIST = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-// Does [aStart,aEnd) overlap [bStart,bEnd)? Times are "HH:MM" strings (lexical compare works).
-const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
 
 // Build a readable label for a schedule from its IDs (subject code + section)
 const scheduleLabel = async (pool, { subject_id, section_id, day_of_week, time_start, time_end }) => {
@@ -166,116 +160,6 @@ module.exports = async (req, res) => {
   const id = req.query.id;
 
   try {
-    // POST /api/schedules?action=ai-generate — Gemini proposes a conflict-free timetable
-    if (req.query.action === 'ai-generate') {
-      if (method !== 'POST') return res.status(405).end();
-      const { section_id, subject_ids, days, day_start, day_end, slot_minutes, semester, school_year } = req.body;
-      if (!section_id) return res.status(400).json({ message: 'Select a section.' });
-      if (!Array.isArray(subject_ids) || subject_ids.length === 0) return res.status(400).json({ message: 'Select at least one subject to schedule.' });
-
-      const term = await getActiveTerm(pool);
-      const sy = school_year || term.active_school_year;
-      const sem = semester || term.active_semester;
-      const useDays = (Array.isArray(days) && days.length ? days : DAY_LIST.slice(0, 5)).filter(d => DAY_LIST.includes(d));
-      const startWin = day_start || '07:30';
-      const endWin = day_end || '17:00';
-      const dur = parseInt(slot_minutes) || 60;
-
-      const [[section]] = await pool.query('SELECT id, name, year_level FROM sections WHERE id=?', [section_id]);
-      if (!section) return res.status(404).json({ message: 'Section not found.' });
-      const [subjects] = await pool.query(`SELECT id, code, name, units FROM subjects WHERE id IN (${subject_ids.map(() => '?').join(',')})`, subject_ids);
-      const [instructors] = await pool.query('SELECT id, name, department FROM instructors ORDER BY name');
-      const [classrooms] = await pool.query('SELECT id, room_code, capacity FROM classrooms ORDER BY room_code');
-      if (instructors.length === 0) return res.status(400).json({ message: 'Add instructors before generating a schedule.' });
-      if (classrooms.length === 0) return res.status(400).json({ message: 'Add classrooms before generating a schedule.' });
-
-      // Existing schedules in this term — the AI must avoid room/instructor clashes with these.
-      const [existing] = await pool.query(
-        `SELECT s.day_of_week, s.time_start, s.time_end, s.instructor_id, s.classroom_id, s.section_id
-         FROM schedules s WHERE s.school_year=? AND s.semester=?`, [sy, sem]);
-
-      const prompt = [
-        'You are a university class-scheduling assistant. Build a weekly class timetable for ONE section.',
-        'Return ONLY a JSON array. Each element: {"subject_code": string, "instructor_id": number, "classroom_id": number, "day_of_week": string, "time_start": "HH:MM", "time_end": "HH:MM"}.',
-        'Rules:',
-        `- Schedule exactly one weekly class meeting for EACH subject listed (one entry per subject).`,
-        `- Allowed days: ${useDays.join(', ')}. Times must fall within ${startWin}–${endWin}, 24h "HH:MM".`,
-        `- Each class lasts ${dur} minutes.`,
-        `- No two classes for THIS section may overlap in time.`,
-        `- Do not reuse the same instructor_id at an overlapping time.`,
-        `- Do not reuse the same classroom_id at an overlapping time.`,
-        `- Also avoid the instructor/room clashes in EXISTING_SCHEDULES below.`,
-        `- Spread classes across the allowed days; avoid stacking everything on one day.`,
-        `SECTION: ${JSON.stringify({ id: section.id, name: section.name, year_level: section.year_level })}`,
-        `SUBJECTS: ${JSON.stringify(subjects.map(s => ({ code: s.code, name: s.name, units: s.units })))}`,
-        `INSTRUCTORS: ${JSON.stringify(instructors.map(i => ({ id: i.id, name: i.name, department: i.department })))}`,
-        `CLASSROOMS: ${JSON.stringify(classrooms.map(c => ({ id: c.id, room_code: c.room_code, capacity: c.capacity })))}`,
-        `EXISTING_SCHEDULES: ${JSON.stringify(existing)}`,
-      ].join('\n');
-
-      const { text, usage } = await geminiRequest(prompt, { json: true });
-      await logAiUsage(pool, 'schedule', usage);
-      const raw = parseJsonArray(text);
-
-      // Validate + sanitize the AI output against real IDs and against conflicts.
-      const subjByCode = new Map(subjects.map(s => [String(s.code).toLowerCase(), s]));
-      const instById = new Map(instructors.map(i => [i.id, i]));
-      const roomById = new Map(classrooms.map(c => [c.id, c]));
-      const placed = existing.map(e => ({ ...e })); // running list to detect clashes as we accept entries
-      const proposal = [];
-      for (const r of raw) {
-        const subj = subjByCode.get(String(r.subject_code || '').toLowerCase());
-        const inst = instById.get(Number(r.instructor_id));
-        const room = roomById.get(Number(r.classroom_id));
-        const day = DAY_LIST.find(d => d.toLowerCase() === String(r.day_of_week || '').toLowerCase());
-        const ts = /^\d{2}:\d{2}$/.test(r.time_start || '') ? r.time_start : null;
-        const te = /^\d{2}:\d{2}$/.test(r.time_end || '') ? r.time_end : null;
-        if (!subj || !inst || !room || !day || !ts || !te || ts >= te) continue;
-
-        const clashes = [];
-        for (const p of placed) {
-          if (p.day_of_week !== day || !overlaps(ts, te, p.time_start, p.time_end)) continue;
-          if (p.section_id === Number(section_id)) clashes.push('section');
-          if (p.instructor_id === inst.id) clashes.push('instructor');
-          if (p.classroom_id === room.id) clashes.push('room');
-        }
-        const entry = {
-          subject_id: subj.id, subject_code: subj.code, subject_name: subj.name,
-          instructor_id: inst.id, instructor_name: inst.name,
-          classroom_id: room.id, room_code: room.room_code,
-          section_id: Number(section_id), section_name: section.name,
-          day_of_week: day, time_start: ts, time_end: te,
-          semester: sem, school_year: sy,
-          conflict: [...new Set(clashes)],
-        };
-        proposal.push(entry);
-        placed.push({ day_of_week: day, time_start: ts, time_end: te, instructor_id: inst.id, classroom_id: room.id, section_id: Number(section_id) });
-      }
-
-      // Report any subjects the AI failed to place.
-      const placedCodes = new Set(proposal.map(p => p.subject_code.toLowerCase()));
-      const missing = subjects.filter(s => !placedCodes.has(String(s.code).toLowerCase())).map(s => s.code);
-      return res.json({ proposal, missing, term: { school_year: sy, semester: sem }, section: { id: section.id, name: section.name }, usage });
-    }
-
-    // POST /api/schedules?action=ai-apply — insert an accepted set of proposed entries
-    if (req.query.action === 'ai-apply') {
-      if (method !== 'POST') return res.status(405).end();
-      const { entries } = req.body;
-      if (!Array.isArray(entries) || entries.length === 0) return res.status(400).json({ message: 'No entries to apply.' });
-      let inserted = 0;
-      for (const e of entries) {
-        if (!e.subject_id || !e.instructor_id || !e.classroom_id || !e.section_id || !e.day_of_week || !e.time_start || !e.time_end) continue;
-        await pool.query(
-          'INSERT INTO schedules (subject_id, instructor_id, classroom_id, section_id, day_of_week, time_start, time_end, semester, school_year) VALUES (?,?,?,?,?,?,?,?,?)',
-          [e.subject_id, e.instructor_id, e.classroom_id, e.section_id, e.day_of_week, e.time_start, e.time_end, e.semester, e.school_year]
-        );
-        inserted++;
-      }
-      await logActivity(pool, { category: 'schedule', action: 'created', type: 'success', title: 'AI schedule applied', detail: `${inserted} class(es) added by AI generator`, actor_name: actor.name, actor_role: actor.role });
-      return res.json({ inserted, message: `Added ${inserted} class(es).` });
-    }
-
     if (method === 'GET') {
       // Scope to a term. Explicit ?school_year / ?semester override; otherwise default to the
       // active term so the dashboard and lists show the current year. ?school_year=all shows everything.
@@ -353,8 +237,6 @@ module.exports = async (req, res) => {
 
     res.status(405).end();
   } catch (err) {
-    // AI/config errors carry an explicit statusCode + user-facing message.
-    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message, retryAfter: err.retryAfter });
     return handleDbError(err, res, 'Schedules');
   }
 };

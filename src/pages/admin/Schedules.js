@@ -4,7 +4,6 @@ import toast from 'react-hot-toast';
 import { notifyBus } from '../../utils/notificationBus';
 import EventsSection from '../../components/common/EventsSection';
 import SearchableSelect from '../../components/common/SearchableSelect';
-import AiGenerateModal from '../../components/common/AiGenerateModal';
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const empty = {
@@ -44,7 +43,6 @@ const Schedules = () => {
   const [editEventId, setEditEventId] = useState(null);
 
   // AI generator
-  const [showAI, setShowAI] = useState(false);
 
   const load = (yr = viewYear, sem = viewSem) => {
     const params = [];
@@ -152,13 +150,6 @@ const Schedules = () => {
             </svg>
             Add Event
           </button>
-          <button onClick={() => setShowAI(true)}
-            className="inline-flex items-center gap-2 border border-[#7B1C1C]/30 text-[#7B1C1C] dark:text-red-300 dark:border-red-900/50 px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#7B1C1C]/5 dark:hover:bg-[#7B1C1C]/20 transition">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-            AI Generate
-          </button>
           <button onClick={() => { setForm(blankForm()); setEditId(null); setShowForm(true); }}
             className="inline-flex items-center gap-2 bg-[#7B1C1C] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#6a1717] transition shadow-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -168,17 +159,6 @@ const Schedules = () => {
           </button>
         </div>
       </div>
-
-      {/* AI Generate Modal */}
-      <AiGenerateModal
-        open={showAI}
-        onClose={() => setShowAI(false)}
-        sections={options.sections}
-        subjects={options.subjects}
-        schoolYear={viewYear || term?.active_school_year}
-        semester={viewSem || term?.active_semester}
-        onApplied={load}
-      />
 
       {/* Events Panel */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm mb-6 overflow-hidden">

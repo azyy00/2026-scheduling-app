@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
-import AiChatWidget from './AiChatWidget';
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -16,8 +15,6 @@ const Layout = ({ children }) => {
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 p-4 sm:p-6 lg:p-7 overflow-auto min-w-0">{children}</main>
       </div>
-      {/* Floating AI assistant (renders for admins only) */}
-      <AiChatWidget />
     </div>
   );
 };
