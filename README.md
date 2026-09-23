@@ -2,7 +2,7 @@
 
 <img src="src/assets/logo.png" alt="Goa Community College" width="110" />
 
-# 🎓 GCC Class Scheduling System
+# GCC Class Scheduling System
 
 ### Conflict‑free timetables for **Goa Community College** — built for admins, instructors, and students.
 
@@ -10,7 +10,7 @@ _Plan classes, detect conflicts, manage sections & faculty, and give every stude
 
 <br/>
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-gcc--scheduling--app.vercel.app-7B1C1C?style=for-the-badge)](https://gcc-scheduling-app.vercel.app)
+[![Live Demo](https://img.shields.io/badge/_Live_Demo-gcc--scheduling--app.vercel.app-7B1C1C?style=for-the-badge)](https://gcc-scheduling-app.vercel.app)
 
 <br/>
 
@@ -25,7 +25,7 @@ _Plan classes, detect conflicts, manage sections & faculty, and give every stude
 
 ---
 
-## ✨ Overview
+##  Overview
 
 The **GCC Class Scheduling System** is a full‑stack web app that turns the messy, error‑prone job of building a college timetable into something fast and reliable. It automatically flags **room, instructor, and section conflicts**, scopes everything to the active **academic year & semester**, and gives each role exactly the view they need — all wrapped in a clean, **dark‑mode‑ready** interface.
 
@@ -33,31 +33,31 @@ The **GCC Class Scheduling System** is a full‑stack web app that turns the mes
 
 ---
 
-## 🌟 Highlights
+##  Highlights
 
-- 🗓️ **Smart calendar** — drag to create classes, click a card to edit or delete, resize rows/columns, and export to **PDF / print**.
-- ⚠️ **Live conflict detection** — room, instructor, **and** section overlaps are caught server‑side and shown right on the dashboard (with which schedule came first).
-- 🎯 **Academic‑term aware** — a global active **year + semester**; switch semesters and the calendar starts blank until it has its own schedules.
-- 🔁 **One‑click year rollover** — snapshot every student's year & section, promote everyone up a level, and advance to the next academic year.
-- 🧾 **Self‑registration** — instructors sign up and students register; admins **approve or reject** from a dedicated queue.
-- 📜 **Full activity log** — every create / edit / delete / approval is recorded, surfaced in the notification bell and a slide‑in **history panel**.
-- 📊 **Insights** — instructor teaching‑load analytics at a glance.
-- 🌙 **Dark mode** everywhere, responsive down to mobile.
-- 🔐 **Hardened by design** — role‑based authorization, fail‑closed JWT, rate‑limited logins, and security headers.
+- **Smart calendar** — drag to create classes, click a card to edit or delete, resize rows/columns, and export to **PDF / print**.
+- **Live conflict detection** — room, instructor, **and** section overlaps are caught server‑side and shown right on the dashboard (with which schedule came first).
+- **Academic‑term aware** — a global active **year + semester**; switch semesters and the calendar starts blank until it has its own schedules.
+- **One‑click year rollover** — snapshot every student's year & section, promote everyone up a level, and advance to the next academic year.
+- **Self‑registration** — instructors sign up and students register; admins **approve or reject** from a dedicated queue.
+- **Full activity log** — every create / edit / delete / approval is recorded, surfaced in the notification bell and a slide‑in **history panel**.
+- **Insights** — instructor teaching‑load analytics at a glance.
+- **Dark mode** everywhere, responsive down to mobile.
+- **Hardened by design** — role‑based authorization, fail‑closed JWT, rate‑limited logins, and security headers.
 
 ---
 
-## 👥 Built for three roles
+## Built for three roles
 
 | Role | What they can do |
 | :--- | :--- |
-| 🛠️ **Admin** | Full control — manage schedules, subjects, sections, classrooms, instructors & students; approve registrations; run analytics; roll over academic years; view the activity log. |
-| 👩‍🏫 **Instructor** | View their own teaching schedule (calendar + list), manage their classes on their page, and see upcoming events. |
-| 🎒 **Student** | See their section's weekly timetable, update their year/section when promoted, and browse events. |
+| **Admin** | Full control — manage schedules, subjects, sections, classrooms, instructors & students; approve registrations; run analytics; roll over academic years; view the activity log. |
+| **Instructor** | View their own teaching schedule (calendar + list), manage their classes on their page, and see upcoming events. |
+| **Student** | See their section's weekly timetable, update their year/section when promoted, and browse events. |
 
 ---
 
-## 🧰 Tech Stack
+## Tech Stack
 
 **Frontend** · React 19 (Create React App) · React Router 7 · Tailwind CSS 3 · lucide‑react · react‑hot‑toast
 **Backend** · Vercel Serverless Functions (Node) · JWT (8h) + bcrypt
@@ -67,7 +67,7 @@ The **GCC Class Scheduling System** is a full‑stack web app that turns the mes
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 React SPA  ──HTTPS/JWT──▶  Vercel Serverless (/api/*.js)  ──SSL──▶  TiDB Serverless (MySQL)
@@ -81,7 +81,7 @@ Each file in `/api` is a single serverless endpoint. Auth, DB access, rate‑lim
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - **Node.js 18+**
@@ -123,7 +123,7 @@ npm start
 # Full stack incl. serverless API (recommended)
 vercel dev
 ```
-Open **http://localhost:3000** 🎉
+Open **http://localhost:3000** 
 
 ### 5. Build for production
 ```bash
@@ -132,7 +132,7 @@ npm run build
 
 ---
 
-## 🔐 Security
+## Security
 
 Security is enforced on the **server**, not just hidden in the UI:
 
@@ -145,7 +145,7 @@ Security is enforced on the **server**, not just hidden in the UI:
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 ├── api/                      # Vercel serverless endpoints (one file = one endpoint)
@@ -164,7 +164,7 @@ Security is enforced on the **server**, not just hidden in the UI:
 
 ---
 
-## 🧭 Roadmap
+## Roadmap
 
 - [ ] Student ID + password/PIN first‑login (replace ID‑only login)
 - [ ] Shared‑store rate limiting (Vercel KV / Redis) for all endpoints
@@ -173,13 +173,13 @@ Security is enforced on the **server**, not just hidden in the UI:
 
 ---
 
-## 👨‍💻 Author
+##  Author
 
 **Anthony Azuela** — design & development.
 Goa Community College · Goa, Camarines Sur 🇵🇭
 
 <div align="center">
 
-_Built with ❤️ for GCC._
+_Built with for GCC._
 
 </div>
